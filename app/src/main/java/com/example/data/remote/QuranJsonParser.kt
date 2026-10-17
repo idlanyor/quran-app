@@ -233,9 +233,21 @@ object QuranJsonParser {
                 val obj = array.optJSONObject(i) ?: continue
                 val suratObj = obj.optJSONObject("surat") ?: obj.optJSONObject("surah")
 
-                val surahNomor = optIntAny(
+                // Extract surah and ayat number from "ayat_key" / "verse_key" (e.g. "41:12" => surah 41, ayat 12)
+                val ayatKey = optStringAny(
                     obj,
-                    listOf("nomorSurat", "nomor_surat", "surahNomor", "surah_id", "surat_id", "surah", "sura"),
+                    listOf("ayat_key", "ayatKey", "verse_key", "verseKey", "key")
+                )
+                val (keySurah, keyAyat) = if (ayatKey.contains(":")) {
+                    val parts = ayatKey.split(":")
+                    Pair(parts.getOrNull(0)?.trim()?.toIntOrNull(), parts.getOrNull(1)?.trim()?.toIntOrNull())
+                } else {
+                    Pair(null, null)
+                }
+
+                val surahNomor = keySurah ?: optIntAny(
+                    obj,
+                    listOf("nomorSurat", "nomor_surat", "surahNomor", "surah_id", "surat_id", "surah", "sura", "suratId", "surahId"),
                     default = suratObj?.let { optIntAny(it, listOf("nomor", "id", "number"), 1) } ?: 1
                 )
                 val surahNamaLatin = optStringAny(
@@ -254,9 +266,9 @@ object QuranJsonParser {
                     suratObj?.let { optStringAny(it, listOf("nama", "namaArab", "arab")) }.orEmpty()
                 }
 
-                val nomorAyat = optIntAny(
+                val nomorAyat = keyAyat ?: optIntAny(
                     obj,
-                    listOf("nomorAyat", "nomor_ayat", "ayat", "nomor", "verse", "ayah", "numberInSurah"),
+                    listOf("nomorAyat", "nomor_ayat", "ayat", "nomor", "verse", "ayah", "numberInSurah", "verse_id", "verseId"),
                     default = i + 1
                 )
 

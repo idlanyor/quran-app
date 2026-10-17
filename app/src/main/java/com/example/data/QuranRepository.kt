@@ -176,7 +176,12 @@ class QuranRepository(
             return@withContext Result.success(PaginatedSearchResult(emptyList(), 1, 1, 0, false))
         }
 
-        val surahMap = dao.getAllSurahsOnce().associateBy { it.nomor }
+        val localSurahs = dao.getAllSurahsOnce()
+        val surahMap = if (localSurahs.isNotEmpty()) {
+            localSurahs.associateBy { it.nomor }
+        } else {
+            QuranSeedData.getAll114Surahs().associateBy { it.nomor }
+        }
 
         try {
             val response = api.searchAyat(
@@ -188,9 +193,11 @@ class QuranRepository(
                 val raw = response.body()?.string().orEmpty()
                 val parsed = QuranJsonParser.parseSearchResults(raw, page, size)
                 val enrichedItems = parsed.items.map { item ->
-                    val s = surahMap[item.surahNomor]
+                    val s = surahMap[item.surahNomor] ?: QuranSeedData.getAll114Surahs().find { it.nomor == item.surahNomor }
                     item.copy(
-                        surahNamaLatin = if (item.surahNamaLatin.startsWith("Surah ke-") && s != null) s.namaLatin else item.surahNamaLatin,
+                        surahNamaLatin = if (item.surahNamaLatin.isBlank() || item.surahNamaLatin.startsWith("Surah ke-")) {
+                            s?.namaLatin ?: "Surah ${item.surahNomor}"
+                        } else item.surahNamaLatin,
                         surahNamaArab = item.surahNamaArab.ifBlank { s?.namaArab.orEmpty() }
                     )
                 }
