@@ -2,8 +2,17 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -149,6 +158,10 @@ fun NurQuranApp(viewModel: QuranViewModel) {
         isReadingSurahDetail = true
     }
 
+    BackHandler(enabled = isReadingSurahDetail) {
+        isReadingSurahDetail = false
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isExpandedScreen = maxWidth >= 600.dp
 
@@ -212,119 +225,167 @@ fun NurQuranApp(viewModel: QuranViewModel) {
                 }
 
                 Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                    if (isReadingSurahDetail) {
-                        SurahDetailScreen(
-                            detailState = surahDetailState,
-                            bookmarks = bookmarks,
-                            lastRead = lastRead,
-                            readerSettings = readerSettings,
-                            audioState = audioState,
-                            onBack = { isReadingSurahDetail = false },
-                            onOpenOtherSurah = { nextNomor ->
-                                viewModel.openSurahDetail(nextNomor, targetAyat = null)
-                            },
-                            onRetry = {
-                                val currentNo = surahDetailState.surah?.nomor ?: 1
-                                viewModel.openSurahDetail(currentNo, forceRefresh = true)
-                            },
-                            onSaveOffline = { nomor ->
-                                viewModel.saveSurahOfflineWithTafsir(nomor)
-                            },
-                            onPlayFullSurah = { surah, ayats ->
-                                viewModel.playFullSurahAudio(surah, ayats)
-                            },
-                            onPlaySingleAyat = { surah, ayats, nomorAyat ->
-                                viewModel.playSingleVerseAudio(surah, ayats, nomorAyat)
-                            },
-                            onTogglePlayPauseAudio = {
-                                viewModel.audioController.togglePlayPause()
-                            },
-                            onOpenTafsir = { surah, ayat ->
-                                viewModel.openTafsirForAyat(surah, ayat)
-                            },
-                            onToggleBookmark = { surah, ayat ->
-                                viewModel.toggleBookmark(surah, ayat)
-                            },
-                            onMarkLastRead = { surah, ayatNomor ->
-                                viewModel.markLastReadAndLogKhatam(surah, ayatNomor)
-                            },
-                            onUpdateAutoScrollSpeed = { speed ->
-                                viewModel.updateAutoScrollSpeed(speed)
-                            },
-                            onClearTargetScroll = {
-                                viewModel.clearTargetScrollAyat()
-                            },
-                            onCopyMessage = { msg ->
-                                viewModel.showSnackbar(msg)
+                    AnimatedContent(
+                        targetState = isReadingSurahDetail,
+                        transitionSpec = {
+                            if (targetState) {
+                                // Entering Surah Detail: slide in from right, slide out tab content to left
+                                (slideInHorizontally(
+                                    initialOffsetX = { fullWidth -> fullWidth },
+                                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                                ) + fadeIn(animationSpec = tween(durationMillis = 300))).togetherWith(
+                                    slideOutHorizontally(
+                                        targetOffsetX = { fullWidth -> (-fullWidth * 0.25f).toInt() },
+                                        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(animationSpec = tween(durationMillis = 200))
+                                )
+                            } else {
+                                // Returning from Surah Detail: slide in tab content from left, slide out Surah detail to right
+                                (slideInHorizontally(
+                                    initialOffsetX = { fullWidth -> (-fullWidth * 0.25f).toInt() },
+                                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                                ) + fadeIn(animationSpec = tween(durationMillis = 300))).togetherWith(
+                                    slideOutHorizontally(
+                                        targetOffsetX = { fullWidth -> fullWidth },
+                                        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(animationSpec = tween(durationMillis = 200))
+                                )
                             }
-                        )
-                    } else {
-                        when (currentTab) {
-                            AppNavTab.SURAH -> {
-                                HomeScreen(
-                                    surahs = filteredSurahs,
-                                    searchQuery = surahSearchQuery,
-                                    selectedFilter = selectedSurahFilter,
-                                    lastRead = lastRead,
-                                    readerSettings = readerSettings,
-                                    khatamLogs = khatamLogs,
-                                    isSyncing = isSyncingSurahs,
-                                    onSearchQueryChange = viewModel::updateSurahSearchQuery,
-                                    onFilterChange = viewModel::selectSurahFilter,
-                                    onRefreshSurahs = viewModel::refreshSurahList,
-                                    onOpenSurah = openSurahAction,
-                                    onNavigateToKhatamTab = {
-                                        currentTab = AppNavTab.BOOKMARK_KHATAM
+                        },
+                        label = "SurahDetailMotionTransition"
+                    ) { readingDetail ->
+                        if (readingDetail) {
+                            SurahDetailScreen(
+                                detailState = surahDetailState,
+                                bookmarks = bookmarks,
+                                lastRead = lastRead,
+                                readerSettings = readerSettings,
+                                audioState = audioState,
+                                onBack = { isReadingSurahDetail = false },
+                                onOpenOtherSurah = { nextNomor ->
+                                    viewModel.openSurahDetail(nextNomor, targetAyat = null)
+                                },
+                                onRetry = {
+                                    val currentNo = surahDetailState.surah?.nomor ?: 1
+                                    viewModel.openSurahDetail(currentNo, forceRefresh = true)
+                                },
+                                onSaveOffline = { nomor ->
+                                    viewModel.saveSurahOfflineWithTafsir(nomor)
+                                },
+                                onPlayFullSurah = { surah, ayats ->
+                                    viewModel.playFullSurahAudio(surah, ayats)
+                                },
+                                onPlaySingleAyat = { surah, ayats, nomorAyat ->
+                                    viewModel.playSingleVerseAudio(surah, ayats, nomorAyat)
+                                },
+                                onTogglePlayPauseAudio = {
+                                    viewModel.audioController.togglePlayPause()
+                                },
+                                onOpenTafsir = { surah, ayat ->
+                                    viewModel.openTafsirForAyat(surah, ayat)
+                                },
+                                onToggleBookmark = { surah, ayat ->
+                                    viewModel.toggleBookmark(surah, ayat)
+                                },
+                                onMarkLastRead = { surah, ayatNomor ->
+                                    viewModel.markLastReadAndLogKhatam(surah, ayatNomor)
+                                },
+                                onUpdateAutoScrollSpeed = { speed ->
+                                    viewModel.updateAutoScrollSpeed(speed)
+                                },
+                                onClearTargetScroll = {
+                                    viewModel.clearTargetScrollAyat()
+                                },
+                                onCopyMessage = { msg ->
+                                    viewModel.showSnackbar(msg)
+                                }
+                            )
+                        } else {
+                            AnimatedContent(
+                                targetState = currentTab,
+                                transitionSpec = {
+                                    val isForward = targetState.ordinal > initialState.ordinal
+                                    val direction = if (isForward) 1 else -1
+                                    (slideInHorizontally(
+                                        initialOffsetX = { fullWidth -> (direction * fullWidth * 0.25f).toInt() },
+                                        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(durationMillis = 250))).togetherWith(
+                                        slideOutHorizontally(
+                                            targetOffsetX = { fullWidth -> (-direction * fullWidth * 0.25f).toInt() },
+                                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+                                        ) + fadeOut(animationSpec = tween(durationMillis = 180))
+                                    )
+                                },
+                                label = "BottomTabMotionTransition"
+                            ) { tab ->
+                                when (tab) {
+                                    AppNavTab.SURAH -> {
+                                        HomeScreen(
+                                            surahs = filteredSurahs,
+                                            searchQuery = surahSearchQuery,
+                                            selectedFilter = selectedSurahFilter,
+                                            lastRead = lastRead,
+                                            readerSettings = readerSettings,
+                                            khatamLogs = khatamLogs,
+                                            isSyncing = isSyncingSurahs,
+                                            onSearchQueryChange = viewModel::updateSurahSearchQuery,
+                                            onFilterChange = viewModel::selectSurahFilter,
+                                            onRefreshSurahs = viewModel::refreshSurahList,
+                                            onOpenSurah = openSurahAction,
+                                            onNavigateToKhatamTab = {
+                                                currentTab = AppNavTab.BOOKMARK_KHATAM
+                                            }
+                                        )
                                     }
-                                )
-                            }
 
-                            AppNavTab.SEARCH -> {
-                                SearchAyatScreen(
-                                    searchState = searchState,
-                                    readerSettings = readerSettings,
-                                    onQueryChange = viewModel::updateSearchQueryInput,
-                                    onExecuteSearch = { q -> viewModel.executeSearch(query = q, page = 1) },
-                                    onPageSizeChange = viewModel::updateSearchPageSize,
-                                    onLoadNextPage = viewModel::loadNextSearchPage,
-                                    onOpenSurahAtAyat = { sNomor, aNomor ->
-                                        openSurahAction(sNomor, aNomor)
-                                    },
-                                    onPlaySearchItemAudio = viewModel::playSearchItemAudio
-                                )
-                            }
+                                    AppNavTab.SEARCH -> {
+                                        SearchAyatScreen(
+                                            searchState = searchState,
+                                            readerSettings = readerSettings,
+                                            onQueryChange = viewModel::updateSearchQueryInput,
+                                            onExecuteSearch = { q -> viewModel.executeSearch(query = q, page = 1) },
+                                            onPageSizeChange = viewModel::updateSearchPageSize,
+                                            onLoadNextPage = viewModel::loadNextSearchPage,
+                                            onOpenSurahAtAyat = { sNomor, aNomor ->
+                                                openSurahAction(sNomor, aNomor)
+                                            },
+                                            onPlaySearchItemAudio = viewModel::playSearchItemAudio
+                                        )
+                                    }
 
-                            AppNavTab.BOOKMARK_KHATAM -> {
-                                BookmarkKhatamScreen(
-                                    bookmarks = bookmarks,
-                                    khatamLogs = khatamLogs,
-                                    lastRead = lastRead,
-                                    readerSettings = readerSettings,
-                                    onOpenSurahAtAyat = { sNomor, aNomor ->
-                                        openSurahAction(sNomor, aNomor)
-                                    },
-                                    onRemoveBookmark = viewModel::removeBookmark,
-                                    onTargetModeChange = viewModel::updateKhatamTargetMode,
-                                    onUpdateDailyTargetAyat = viewModel::updateDailyKhatamTarget,
-                                    onUpdateDailyTargetSurah = viewModel::updateDailyKhatamTargetSurah,
-                                    onLogCustomAyats = viewModel::logCustomKhatamAyats,
-                                    onLogCustomSurahs = viewModel::logCustomKhatamSurahs,
-                                    onResetKhatam = viewModel::resetKhatamProgress
-                                )
-                            }
+                                    AppNavTab.BOOKMARK_KHATAM -> {
+                                        BookmarkKhatamScreen(
+                                            bookmarks = bookmarks,
+                                            khatamLogs = khatamLogs,
+                                            lastRead = lastRead,
+                                            readerSettings = readerSettings,
+                                            onOpenSurahAtAyat = { sNomor, aNomor ->
+                                                openSurahAction(sNomor, aNomor)
+                                            },
+                                            onRemoveBookmark = viewModel::removeBookmark,
+                                            onTargetModeChange = viewModel::updateKhatamTargetMode,
+                                            onUpdateDailyTargetAyat = viewModel::updateDailyKhatamTarget,
+                                            onUpdateDailyTargetSurah = viewModel::updateDailyKhatamTargetSurah,
+                                            onLogCustomAyats = viewModel::logCustomKhatamAyats,
+                                            onLogCustomSurahs = viewModel::logCustomKhatamSurahs,
+                                            onResetKhatam = viewModel::resetKhatamProgress
+                                        )
+                                    }
 
-                            AppNavTab.SETTINGS -> {
-                                val cachedCount = allSurahs.count { it.isCachedOffline }
-                                SettingsScreen(
-                                    settings = readerSettings,
-                                    cachedSurahCount = cachedCount,
-                                    onArabicFontSizeChange = viewModel::updateArabicFontSize,
-                                    onTranslationFontSizeChange = viewModel::updateTranslationFontSize,
-                                    onShowLatinChange = viewModel::updateShowLatin,
-                                    onShowTranslationChange = viewModel::updateShowTranslation,
-                                    onAutoNextAudioChange = viewModel::updateAutoNextAudio,
-                                    onThemeModeChange = viewModel::updateThemeMode
-                                )
+                                    AppNavTab.SETTINGS -> {
+                                        val cachedCount = allSurahs.count { it.isCachedOffline }
+                                        SettingsScreen(
+                                            settings = readerSettings,
+                                            cachedSurahCount = cachedCount,
+                                            onArabicFontSizeChange = viewModel::updateArabicFontSize,
+                                            onTranslationFontSizeChange = viewModel::updateTranslationFontSize,
+                                            onShowLatinChange = viewModel::updateShowLatin,
+                                            onShowTranslationChange = viewModel::updateShowTranslation,
+                                            onAutoNextAudioChange = viewModel::updateAutoNextAudio,
+                                            onThemeModeChange = viewModel::updateThemeMode
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
