@@ -1,0 +1,140 @@
+name: Build APK & GitHub Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag versi rilis opsional (contoh: v1.0.0) jika ingin langsung membuat GitHub Release'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build NurQuran APK & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare Keystore for Debug & Release Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD_SECRET: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD_SECRET: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # Generate debug.keystore required by debugConfig in app/build.gradle.kts
+          if [ ! -f "debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          # Prepare release keystore (from GitHub Secrets if configured, or fallback auto-generated upload key)
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
+            echo "STORE_PASSWORD=${STORE_PASSWORD_SECRET}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${KEY_PASSWORD_SECRET}" >> $GITHUB_ENV
+          else
+            keytool -genkeypair -v \
+              -keystore my-upload-key.jks \
+              -storepass nurquran123 \
+              -alias upload \
+              -keypass nurquran123 \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=NurQuran Release,OU=Mobile,O=NurQuran,L=Jakarta,ST=DKI,C=ID"
+            echo "STORE_PASSWORD=nurquran123" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=nurquran123" >> $GITHUB_ENV
+          fi
+          echo "KEYSTORE_PATH=${GITHUB_WORKSPACE}/my-upload-key.jks" >> $GITHUB_ENV
+
+      - name: Build Debug & Release APK
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace
+          else
+            gradle assembleDebug assembleRelease --no-daemon --stacktrace
+          fi
+
+      - name: Rename APKs for Distribution
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/NurQuran-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk dist/NurQuran-release.apk
+          ls -lh dist/
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NurQuran-Debug-APK
+          path: dist/NurQuran-debug.apk
+          retention-days: 30
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NurQuran-Release-APK
+          path: dist/NurQuran-release.apk
+          retention-days: 30
+
+      - name: Determine Release Tag
+        id: release_meta
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            TAG_NAME="${{ inputs.release_tag }}"
+          fi
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release & Attach APKs
+        if: steps.release_meta.outputs.tag_name != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag_name }}
+          name: "NurQuran ${{ steps.release_meta.outputs.tag_name }}"
+          generate_release_notes: true
+          body: |
+            ## NurQuran ${{ steps.release_meta.outputs.tag_name }} — Aplikasi Al-Qur'an Digital & Pendamping Khatam Harian
+            
+            ### Unduh File APK:
+            - **`NurQuran-release.apk`**: Versi rilis siap pasang (direkomendasikan).
+            - **`NurQuran-debug.apk`**: Versi pengujian/debug.
+          files: |
+            dist/NurQuran-release.apk
+            dist/NurQuran-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
