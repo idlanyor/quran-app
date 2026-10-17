@@ -1,4 +1,4 @@
-name: Build APK & GitHub Release
+name: Build APK & Publish Release to idlanyor/quran-app
 
 on:
   push:
@@ -7,16 +7,12 @@ on:
       - master
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - main
-      - master
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Tag versi rilis opsional (contoh: v1.0.0) jika ingin langsung membuat GitHub Release'
+        description: 'Tag versi rilis (contoh: v1.0.0)'
         required: false
-        default: ''
+        default: 'v1.0.0'
         type: string
 
 permissions:
@@ -24,7 +20,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build NurQuran APK & Release
+    name: Build NurQuran APK & Release to idlanyor/quran-app
     runs-on: ubuntu-latest
 
     steps:
@@ -46,7 +42,6 @@ jobs:
           STORE_PASSWORD_SECRET: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD_SECRET: ${{ secrets.KEY_PASSWORD }}
         run: |
-          # Generate debug.keystore required by debugConfig in app/build.gradle.kts
           if [ ! -f "debug.keystore" ]; then
             keytool -genkeypair -v \
               -keystore debug.keystore \
@@ -59,7 +54,6 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          # Prepare release keystore (from GitHub Secrets if configured, or fallback auto-generated upload key)
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
             echo "STORE_PASSWORD=${STORE_PASSWORD_SECRET}" >> $GITHUB_ENV
@@ -95,46 +89,49 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk dist/NurQuran-release.apk
           ls -lh dist/
 
-      - name: Upload Debug APK Artifact
+      - name: Upload APK Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: NurQuran-Debug-APK
-          path: dist/NurQuran-debug.apk
-          retention-days: 30
-
-      - name: Upload Release APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NurQuran-Release-APK
-          path: dist/NurQuran-release.apk
+          name: NurQuran-APKs
+          path: |
+            dist/NurQuran-release.apk
+            dist/NurQuran-debug.apk
           retention-days: 30
 
       - name: Determine Release Tag
         id: release_meta
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG_NAME="${GITHUB_REF#refs/tags/}"
-          else
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.release_tag }}" ]]; then
             TAG_NAME="${{ inputs.release_tag }}"
+          else
+            TAG_NAME="v1.0.${{ github.run_number }}"
           fi
           echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release & Attach APKs
-        if: steps.release_meta.outputs.tag_name != ''
+      - name: Publish Release to github.com/idlanyor/quran-app/releases
         uses: softprops/action-gh-release@v2
         with:
+          repository: idlanyor/quran-app
           tag_name: ${{ steps.release_meta.outputs.tag_name }}
           name: "NurQuran ${{ steps.release_meta.outputs.tag_name }}"
           generate_release_notes: true
           body: |
             ## NurQuran ${{ steps.release_meta.outputs.tag_name }} — Aplikasi Al-Qur'an Digital & Pendamping Khatam Harian
-            
+
             ### Unduh File APK:
             - **`NurQuran-release.apk`**: Versi rilis siap pasang (direkomendasikan).
             - **`NurQuran-debug.apk`**: Versi pengujian/debug.
+
+            ### Fitur Utama:
+            - 114 Surah Al-Qur'an dengan teks Arab (Adobe Naskh), transliterasi Latin, dan terjemahan Bahasa Indonesia.
+            - Tafsir resmi Kementerian Agama RI per ayat.
+            - Pemutar audio murottal per ayat & satu surah penuh.
+            - Fitur Auto-Scroll dengan pengaturan kecepatan (1x–10x) & navigasi sticky di atas halaman ayat.
+            - Khatam Tracker harian (mode Target Ayat & Target Surah) serta penyimpanan Bookmark & Cache Offline.
           files: |
             dist/NurQuran-release.apk
             dist/NurQuran-debug.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
