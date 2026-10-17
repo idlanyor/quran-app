@@ -1,0 +1,6 @@
+{
+  "name": "NurQuran",
+  "description": "Aplikasi Al-Qur'an Digital modern dengan terjemahan, tafsir Kemenag RI, pencarian ayat, murottal audio, simpan offline, dan Khatam tracker.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

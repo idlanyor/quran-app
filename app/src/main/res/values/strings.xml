@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">NurQuran</string>
+    <string name="subtitle_app">Al-Qur\'an Digital &amp; Tafsir Kemenag RI</string>
+    <string name="tab_surah">Surah</string>
+    <string name="tab_search">Cari Ayat</string>
+    <string name="tab_bookmark">Khatam &amp; Simpan</string>
+    <string name="tab_settings">Pengaturan</string>
+    <string name="search_surah_hint">Cari nama surah, arti, atau nomor…</string>
+    <string name="search_ayat_hint">Cari kata di terjemahan (misal: rahmat, sabar)…</string>
+    <string name="last_read_title">Terakhir Dibaca</string>
+    <string name="continue_reading">Lanjut Baca</string>
+    <string name="khatam_progress">Target Khatam Harian</string>
+    <string name="tafsir_title">Tafsir Kemenag RI</string>
+    <string name="offline_ready">Tersimpan Offline</string>
+    <string name="download_offline">Simpan Offline</string>
+    <string name="play_surah">Putar Murottal</string>
+    <string name="stop_audio">Hentikan Audio</string>
+    <string name="load_more">Muat Halaman Berikutnya</string>
+</resources>
