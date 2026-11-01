@@ -1,0 +1,256 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "d7a2960a4b42942b6ffeadafa5378f5f",
+    "entities": [
+      {
+        "tableName": "surahs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`nomor` INTEGER NOT NULL, `namaArab` TEXT NOT NULL, `namaLatin` TEXT NOT NULL, `arti` TEXT NOT NULL, `jumlahAyat` INTEGER NOT NULL, `tempatTurun` TEXT NOT NULL, `deskripsi` TEXT NOT NULL, `audioFullUrl` TEXT NOT NULL, `isCachedOffline` INTEGER NOT NULL, PRIMARY KEY(`nomor`))",
+        "fields": [
+          {
+            "fieldPath": "nomor",
+            "columnName": "nomor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "namaArab",
+            "columnName": "namaArab",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "namaLatin",
+            "columnName": "namaLatin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "arti",
+            "columnName": "arti",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "jumlahAyat",
+            "columnName": "jumlahAyat",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tempatTurun",
+            "columnName": "tempatTurun",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deskripsi",
+            "columnName": "deskripsi",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioFullUrl",
+            "columnName": "audioFullUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCachedOffline",
+            "columnName": "isCachedOffline",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "nomor"
+          ]
+        }
+      },
+      {
+        "tableName": "ayats",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`surahNomor` INTEGER NOT NULL, `nomorAyat` INTEGER NOT NULL, `teksArab` TEXT NOT NULL, `teksLatin` TEXT NOT NULL, `teksIndonesia` TEXT NOT NULL, `audioUrl` TEXT NOT NULL, PRIMARY KEY(`surahNomor`, `nomorAyat`))",
+        "fields": [
+          {
+            "fieldPath": "surahNomor",
+            "columnName": "surahNomor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nomorAyat",
+            "columnName": "nomorAyat",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teksArab",
+            "columnName": "teksArab",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teksLatin",
+            "columnName": "teksLatin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teksIndonesia",
+            "columnName": "teksIndonesia",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioUrl",
+            "columnName": "audioUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "surahNomor",
+            "nomorAyat"
+          ]
+        }
+      },
+      {
+        "tableName": "tafsirs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`surahNomor` INTEGER NOT NULL, `nomorAyat` INTEGER NOT NULL, `teksTafsir` TEXT NOT NULL, PRIMARY KEY(`surahNomor`, `nomorAyat`))",
+        "fields": [
+          {
+            "fieldPath": "surahNomor",
+            "columnName": "surahNomor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nomorAyat",
+            "columnName": "nomorAyat",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teksTafsir",
+            "columnName": "teksTafsir",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "surahNomor",
+            "nomorAyat"
+          ]
+        }
+      },
+      {
+        "tableName": "bookmarks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`surahNomor` INTEGER NOT NULL, `surahNamaLatin` TEXT NOT NULL, `surahNamaArab` TEXT NOT NULL, `nomorAyat` INTEGER NOT NULL, `teksArab` TEXT NOT NULL, `teksIndonesia` TEXT NOT NULL, `catatan` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, PRIMARY KEY(`surahNomor`, `nomorAyat`))",
+        "fields": [
+          {
+            "fieldPath": "surahNomor",
+            "columnName": "surahNomor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "surahNamaLatin",
+            "columnName": "surahNamaLatin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "surahNamaArab",
+            "columnName": "surahNamaArab",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nomorAyat",
+            "columnName": "nomorAyat",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teksArab",
+            "columnName": "teksArab",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teksIndonesia",
+            "columnName": "teksIndonesia",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "catatan",
+            "columnName": "catatan",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "surahNomor",
+            "nomorAyat"
+          ]
+        }
+      },
+      {
+        "tableName": "khatam_logs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`dateKey` TEXT NOT NULL, `ayatCountRead` INTEGER NOT NULL, `surahCountRead` INTEGER NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`dateKey`))",
+        "fields": [
+          {
+            "fieldPath": "dateKey",
+            "columnName": "dateKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ayatCountRead",
+            "columnName": "ayatCountRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "surahCountRead",
+            "columnName": "surahCountRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdated",
+            "columnName": "lastUpdated",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "dateKey"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd7a2960a4b42942b6ffeadafa5378f5f')"
+    ]
+  }
+}

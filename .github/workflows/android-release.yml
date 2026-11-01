@@ -125,7 +125,7 @@ jobs:
             - **`NurQuran-debug.apk`**: Versi pengujian/debug.
 
             ### Fitur Utama:
-            - 114 Surah Al-Qur'an dengan teks Arab (Adobe Naskh), transliterasi Latin, dan terjemahan Bahasa Indonesia.
+            - 114 Surah Al-Qur'an dengan teks Arab (Amiri), transliterasi Latin, dan terjemahan Bahasa Indonesia.
             - Tafsir resmi Kementerian Agama RI per ayat.
             - Pemutar audio murottal per ayat & satu surah penuh.
             - Fitur Auto-Scroll dengan pengaturan kecepatan (1x–10x) & navigasi sticky di atas halaman ayat.
