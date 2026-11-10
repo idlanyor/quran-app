@@ -10,9 +10,8 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Tag versi rilis (contoh: v1.0.0)'
-        required: false
-        default: 'v1.0.0'
+        description: 'Tag versi rilis (contoh: v2.0.0)'
+        required: true
         type: string
 
 permissions:
@@ -20,7 +19,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build NurQuran APK & Release to idlanyor/quran-app
+    name: Build Digital Quran APK
     runs-on: ubuntu-latest
 
     steps:
@@ -85,44 +84,48 @@ jobs:
       - name: Rename APKs for Distribution
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/NurQuran-debug.apk
-          cp app/build/outputs/apk/release/app-release.apk dist/NurQuran-release.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/DigitalQuran-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk dist/DigitalQuran-release.apk
           ls -lh dist/
 
       - name: Upload APK Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: NurQuran-APKs
+          name: DigitalQuran-APKs
           path: |
-            dist/NurQuran-release.apk
-            dist/NurQuran-debug.apk
+            dist/DigitalQuran-release.apk
+            dist/DigitalQuran-debug.apk
           retention-days: 30
 
       - name: Determine Release Tag
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         id: release_meta
+        env:
+          REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             TAG_NAME="${GITHUB_REF#refs/tags/}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.release_tag }}" ]]; then
-            TAG_NAME="${{ inputs.release_tag }}"
           else
-            TAG_NAME="v1.0.${{ github.run_number }}"
+            TAG_NAME="$REQUESTED_RELEASE_TAG"
           fi
           echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
 
       - name: Publish Release to github.com/idlanyor/quran-app/releases
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           repository: idlanyor/quran-app
           tag_name: ${{ steps.release_meta.outputs.tag_name }}
-          name: "NurQuran ${{ steps.release_meta.outputs.tag_name }}"
+          name: "Digital Qur'an ${{ steps.release_meta.outputs.tag_name }}"
           generate_release_notes: true
           body: |
-            ## NurQuran ${{ steps.release_meta.outputs.tag_name }} — Aplikasi Al-Qur'an Digital & Pendamping Khatam Harian
+            ## Digital Qur'an ${{ steps.release_meta.outputs.tag_name }}
+
+            Petunjuk Tuhan dalam genggaman.
 
             ### Unduh File APK:
-            - **`NurQuran-release.apk`**: Versi rilis siap pasang (direkomendasikan).
-            - **`NurQuran-debug.apk`**: Versi pengujian/debug.
+            - **`DigitalQuran-release.apk`**: Versi rilis siap pasang (direkomendasikan).
+            - **`DigitalQuran-debug.apk`**: Versi pengujian/debug.
 
             ### Fitur Utama:
             - 114 Surah Al-Qur'an dengan teks Arab (Amiri), transliterasi Latin, dan terjemahan Bahasa Indonesia.
@@ -131,7 +134,7 @@ jobs:
             - Fitur Auto-Scroll dengan pengaturan kecepatan (1x–10x) & navigasi sticky di atas halaman ayat.
             - Khatam Tracker harian (mode Target Ayat & Target Surah) serta penyimpanan Bookmark & Cache Offline.
           files: |
-            dist/NurQuran-release.apk
-            dist/NurQuran-debug.apk
+            dist/DigitalQuran-release.apk
+            dist/DigitalQuran-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}

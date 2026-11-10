@@ -71,7 +71,7 @@ val AppShapes = Shapes(
 )
 
 @Composable
-fun NurQuranTheme(
+fun QuranAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     ivoryTheme: Boolean = false,
     content: @Composable () -> Unit

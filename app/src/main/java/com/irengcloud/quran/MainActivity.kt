@@ -85,7 +85,7 @@ import com.irengcloud.quran.ui.screens.HomeScreen
 import com.irengcloud.quran.ui.screens.SearchAyatScreen
 import com.irengcloud.quran.ui.screens.SettingsScreen
 import com.irengcloud.quran.ui.screens.SurahDetailScreen
-import com.irengcloud.quran.ui.theme.NurQuranTheme
+import com.irengcloud.quran.ui.theme.QuranAppTheme
 
 enum class AppNavTab(
     val label: String,
@@ -157,11 +157,11 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
 
-            NurQuranTheme(
+            QuranAppTheme(
                 darkTheme = useDarkTheme,
                 ivoryTheme = readerSettings.themeMode == ThemeMode.LIGHT
             ) {
-                NurQuranApp(viewModel = viewModel, reminderOpenRequest = reminderOpenRequest,
+                QuranApp(viewModel = viewModel, reminderOpenRequest = reminderOpenRequest,
                     onReminderHandled = { reminderOpenRequest = 0; intent.action = Intent.ACTION_MAIN })
             }
         }
@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminderHandled: () -> Unit = {}) {
+fun QuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminderHandled: () -> Unit = {}) {
     val dailyFeatures: DailyFeaturesViewModel = viewModel()
     val allSurahs by viewModel.allSurahs.collectAsStateWithLifecycle()
     val filteredSurahs by viewModel.filteredSurahs.collectAsStateWithLifecycle()

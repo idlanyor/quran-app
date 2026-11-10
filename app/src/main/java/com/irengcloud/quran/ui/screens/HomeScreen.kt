@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -131,11 +132,12 @@ fun HomeScreen(
                         contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     Column(Modifier.padding(start = 24.dp, top = 26.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Icon(Icons.AutoMirrored.Outlined.MenuBook, null, tint = Color(0xFFE5B78C))
-                            Text("Al-Qur’an", style = MaterialTheme.typography.headlineLarge, color = Color(0xFFFFF4E6))
+                            Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(38.dp))
+                            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge,
+                                color = Color(0xFFFFF4E6))
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text("Al-Qur’anul Karim\ndalam Bahasa Indonesia", color = Color(0xFFF1E5DB),
+                        Text(stringResource(R.string.app_tagline), color = Color(0xFFF1E5DB),
                             style = MaterialTheme.typography.bodySmall)
                     }
                     IconButton(onClick = onNavigateToSettings, modifier = Modifier.align(Alignment.TopEnd).padding(14.dp)) {

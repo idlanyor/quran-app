@@ -63,7 +63,7 @@ interface QuranApiService {
                 .addInterceptor { chain ->
                     val request = chain.request().newBuilder()
                         .header("Accept", "application/json")
-                        .header("User-Agent", "NurQuran-Android/1.0")
+                        .header("User-Agent", "DigitalQuran-Android/1.0")
                         .build()
                     chain.proceed(request)
                 }
