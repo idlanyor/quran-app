@@ -1,5 +1,18 @@
 package com.irengcloud.quran.ui.screens
 
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.material.icons.outlined.Mosque
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.runtime.mutableLongStateOf
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import java.text.SimpleDateFormat
+import java.util.Date
+import com.irengcloud.quran.R
+import com.irengcloud.quran.ui.components.AppArtwork
+import com.irengcloud.quran.ui.components.QiblaMockupCard
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -214,433 +227,165 @@ fun PrayerScreen(
 
     val todaySchedule = data?.days?.firstOrNull { it.date == today }
     val timeZone = prayerTimeZone(settings.prayerProvince)
-    val nextPrayer = remember(todaySchedule, timeZone) {
-        todaySchedule?.let { calculateNextPrayer(it.times, timeZone) }
+    var clockTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (isActive) { delay(30_000); clockTick = System.currentTimeMillis() } }
+    val mainNames = remember { setOf("Subuh", "Zuhur", "Asar", "Magrib", "Isya") }
+    val nextPrayer = remember(todaySchedule, timeZone.id, clockTick) {
+        todaySchedule?.let { calculateNextPrayer(it.times.filter { item -> item.first in mainNames }, timeZone) }
     }
+    val formattedDate = remember(today, timeZone.id) {
+        SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.forLanguageTag("id-ID")).apply { this.timeZone = timeZone }.format(Date())
+    }
+    var cityPickerProvince by rememberSaveable { mutableStateOf<String?>(null) }
+    val regionBasedQibla = qiblaLocation?.isManualRegion == true ||
+        (qiblaLocation == null && settings.prayerCity.isNotBlank())
+    val updateQibla: () -> Unit = if (regionBasedQibla) ({ features.resolveManualQibla() }) else requestLocation
 
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .widthIn(max = 840.dp)
-                .testTag("prayer_screen"),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = 12.dp,
-                bottom = 120.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Header Screen
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Jadwal Sholat",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = "Waktu sholat akurat Kemenag RI & arah kiblat",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+    Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(modifier = Modifier.fillMaxSize().widthIn(max = 840.dp).testTag("prayer_screen"),
+            contentPadding = PaddingValues(bottom = 110.dp)) {
+            item(key = "header", contentType = "header") {
+                Box(Modifier.fillMaxWidth().height(148.dp).background(Color(0xFF252439))) {
+                    AppArtwork(R.drawable.bookmarks_header, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+                    Column(Modifier.align(Alignment.Center).padding(bottom = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                        Icon(Icons.Outlined.Mosque, null, tint = Color(0xFFE0B48A), modifier = Modifier.size(30.dp))
+                        Text("Jadwal Sholat & Kiblat", style = MaterialTheme.typography.headlineMedium, color = Color(0xFFFFF1E3))
                     }
-
-                    IconButton(
-                        onClick = {
-                            if (settings.prayerCity.isNotBlank()) {
-                                features.refreshPrayer(settings.prayerProvince, settings.prayerCity, true)
+                    IconButton(onClick = { features.refreshPrayer(settings.prayerProvince, settings.prayerCity, true) },
+                        enabled = !state.loading && settings.prayerCity.isNotBlank(),
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).testTag("refresh_prayer_button")) {
+                        if (state.loading) CircularProgressIndicator(Modifier.size(17.dp), color = Color(0xFFE0B48A), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.Refresh, "Muat ulang jadwal", tint = Color(0xFFE0B48A), modifier = Modifier.size(20.dp))
+                    }
+                }
+            }
+            item(key = "sections", contentType = "sections") {
+                Box(Modifier.fillMaxWidth().background(Color(0xFF252439))) {
+                    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background,
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
+                        Surface(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                            shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shadowElevation = 2.dp) {
+                            Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                PrayerSegmentTab("Jadwal Sholat", selectedSection != 1, Icons.Outlined.AccessTime,
+                                    Modifier.weight(1f).testTag("filter_chip_today")) { selectedSection = 0 }
+                                PrayerSegmentTab("Kiblat", selectedSection == 1, Icons.Outlined.Explore,
+                                    Modifier.weight(1f).testTag("filter_chip_qibla")) { selectedSection = 1 }
                             }
-                        },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .testTag("refresh_prayer_button"),
-                        enabled = !state.loading && settings.prayerCity.isNotBlank()
-                    ) {
-                        if (state.loading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Muat Ulang Jadwal",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
                         }
                     }
                 }
             }
-
-            // Section Filter Chips (Senada dengan BookmarkKhatamScreen)
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedSection == 0,
-                        onClick = { selectedSection = 0 },
-                        label = { Text("Hari Ini & Kiblat") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.AccessTime,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        modifier = Modifier.testTag("filter_chip_today")
-                    )
-
-                    FilterChip(
-                        selected = selectedSection == 1,
-                        onClick = { selectedSection = 1 },
-                        label = { Text("Arah Kiblat") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Explore,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        modifier = Modifier.testTag("filter_chip_qibla")
-                    )
-
-                    FilterChip(
-                        selected = selectedSection == 2,
-                        onClick = { selectedSection = 2 },
-                        label = { Text("Jadwal Sebulan") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.CalendarMonth,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        modifier = Modifier.testTag("filter_chip_month")
-                    )
-                }
-            }
-
-            // Error Message Card
-            state.error?.let { err ->
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = err,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+            item(key = "location", contentType = "location") {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).clickable {
+                        features.loadRegions(settings.prayerProvince); picker = 1
+                    }.padding(vertical = 10.dp).testTag("prayer_location_picker"),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Outlined.LocationOn, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Text(if (settings.prayerCity.isBlank()) "Pilih provinsi dan kota" else "${settings.prayerCity}, Indonesia",
+                            style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(Icons.Default.KeyboardArrowDown, "Pilih wilayah", modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = requestLocation, enabled = !state.locating,
+                        modifier = Modifier.testTag("prayer_detect_location")) {
+                        if (state.locating) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.MyLocation, "Gunakan lokasi saya", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
-
-            // ==================== SECTION 0: HARI INI & KIBLAT ====================
+            item(key = "date", contentType = "date") {
+                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Hari ini, $formattedDate", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif),
+                        modifier = Modifier.weight(1f))
+                    IconButton(onClick = { selectedSection = if (selectedSection == 2) 0 else 2 },
+                        modifier = Modifier.testTag("filter_chip_month")) {
+                        Icon(Icons.Outlined.CalendarMonth, "Jadwal sebulan", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+            if (permissionDenied) {
+                item(key = "permission", contentType = "notice") {
+                    TextButton(onClick = {
+                        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
+                    }, modifier = Modifier.padding(horizontal = 20.dp)) { Text("Izinkan lokasi di pengaturan HP atau pilih wilayah manual") }
+                }
+            }
+            state.error?.let { error ->
+                item(key = "error", contentType = "notice") {
+                    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                        Text(error, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
+            }
             if (selectedSection == 0) {
-                // Hero Card: Highlight Next Prayer / Location status
-                item {
-                    PrayerHeroCard(
-                        settings = settings,
-                        todaySchedule = todaySchedule,
-                        nextPrayer = nextPrayer,
-                        timeZoneName = timeZone.id,
-                        fromCache = data?.fromCache == true
-                    )
-                }
-
-                // Location Settings Card (Gunakan GPS / Pilih Wilayah)
-                item {
-                    PrayerLocationCard(
-                        settings = settings,
-                        stateProvince = state.selectedProvince,
-                        locating = state.locating,
-                        loadingRegions = state.loadingRegions,
-                        permissionDenied = permissionDenied,
-                        onRequestLocation = requestLocation,
-                        onOpenSettings = {
-                            context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
-                        },
-                        onSelectProvinceClick = {
-                            features.loadRegions(settings.prayerProvince)
-                            picker = 1
-                        },
-                        onSelectCityClick = {
-                            picker = 2
-                        }
-                    )
-                }
-
-                // Today's Prayer Grid
-                if (todaySchedule != null) {
-                    item {
-                        TodayPrayerTimesCard(
-                            todaySchedule = todaySchedule,
-                            timeZoneId = timeZone.id,
-                            nextPrayerName = nextPrayer?.name
-                        )
-                    }
-                } else if (settings.prayerCity.isNotBlank() && !state.loading) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.AccessTime,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Text(
-                                    text = "Jadwal untuk $today belum tersedia",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.Center
-                                )
-                                Text(
-                                    text = "Pastikan perangkat terhubung ke internet lalu ketuk Muat Ulang untuk memperbarui.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
+                item(key = "times", contentType = "times") {
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 7.dp)) {
+                        Column(Modifier.padding(6.dp)) {
+                            listOf("Subuh", "Zuhur", "Asar", "Magrib", "Isya").forEachIndexed { index, name ->
+                                val value = todaySchedule?.times?.firstOrNull { it.first == name }?.second
+                                MockupPrayerRow(if (name == "Magrib") "Maghrib" else name, value ?: "— : —",
+                                    nextPrayer?.name == name && nextPrayer.isTomorrow.not(), prayerIcon(name))
+                                if (index != 4) HorizontalDivider(Modifier.padding(start = 44.dp, end = 10.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             }
                         }
                     }
                 }
-
-                // Qibla Compass Card on Overview Tab
-                item {
-                    QiblaCompassCard(
-                        location = qiblaLocation,
-                        locating = state.locating,
-                        onRequestLocation = requestLocation
-                    )
+                item(key = "schedule_status", contentType = "status") {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(when {
+                            settings.prayerCity.isBlank() -> "Pilih wilayah untuk menampilkan waktu sholat."
+                            state.loading -> "Memuat jadwal sholat…"
+                            nextPrayer != null -> "${nextPrayer.name}${if (nextPrayer.isTomorrow) " besok" else " berikutnya"} · ${nextPrayer.time}"
+                            else -> "Jadwal hari ini belum tersedia."
+                        }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f))
+                    }
                 }
-
-                // Teaser to Monthly Schedule
+                item(key = "divider", contentType = "divider") {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                        Text("۞", fontFamily = AmiriQuranFontFamily, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+                item(key = "qibla_overview", contentType = "qibla") {
+                    QiblaMockupCard(qiblaLocation, state.locating || state.resolvingManualLocation, updateQibla,
+                        regionBased = regionBasedQibla, resolvingRegion = state.resolvingManualLocation, locationMessage = state.qiblaError,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                }
+            } else if (selectedSection == 1) {
+                item(key = "qibla_focused", contentType = "qibla") {
+                    QiblaMockupCard(qiblaLocation, state.locating || state.resolvingManualLocation, updateQibla, expanded = true,
+                        regionBased = regionBasedQibla, resolvingRegion = state.resolvingManualLocation, locationMessage = state.qiblaError,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
+                }
+            } else {
+                item(key = "month_title", contentType = "heading") {
+                    Text("Jadwal Sholat Sebulan", style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp))
+                }
                 if (data != null) {
-                    item {
-                        MonthlyScheduleTeaserCard(
-                            data = data,
-                            isExpanded = showMonthExpanded,
-                            onToggle = { showMonthExpanded = !showMonthExpanded },
-                            onGoToMonthTab = { selectedSection = 2 }
-                        )
-                    }
-
-                    if (showMonthExpanded) {
-                        items(data.days, key = { it.date }) { day ->
-                            PrayerDayRowCard(
-                                day = day,
-                                isToday = day.date == today
-                            )
+                    items(data.days, key = { it.date }, contentType = { "day" }) { day ->
+                        Box(Modifier.padding(horizontal = 20.dp, vertical = 5.dp)) {
+                            PrayerDayRowCard(day, isToday = day.date == today)
                         }
-                    }
-                }
-            }
-
-            // ==================== SECTION 1: ARAH KIBLAT FOCUSED ====================
-            if (selectedSection == 1) {
-                item {
-                    QiblaCompassCard(
-                        location = qiblaLocation,
-                        locating = state.locating,
-                        onRequestLocation = requestLocation
-                    )
-                }
-
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text(
-                                text = "Petunjuk Penggunaan Kompas Kiblat",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "1. Pegang smartphone dalam posisi mendatar (horizontal) sejajar dengan permukaan tanah.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "2. Jauhkan smartphone dari benda-benda logam, magnet, atau casing magnetik.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "3. Jika akurasi rendah, kalibrasi sensor dengan menggerakkan smartphone membentuk pola angka 8 di udara.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "4. Putar posisi tubuh Anda hingga jarum kompas berwarna toska/biru lurus mengarah tepat ke atas (0°).",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ==================== SECTION 2: JADWAL SEBULAN FOCUSED ====================
-            if (selectedSection == 2) {
-                if (data != null) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(18.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Jadwal Bulan Ini",
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "${data.city}, ${data.province} • ${data.days.size} Hari",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (data.fromCache) {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.secondaryContainer,
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.CloudDone,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.secondary,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Text(
-                                                text = "Offline",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    items(data.days, key = { it.date }) { day ->
-                        PrayerDayRowCard(
-                            day = day,
-                            isToday = day.date == today
-                        )
                     }
                 } else {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(28.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                if (state.loading) {
-                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                                    Spacer(Modifier.height(8.dp))
-                                    Text("Memuat jadwal sebulan...")
-                                } else {
-                                    Text(
-                                        text = "Jadwal bulanan belum dimuat",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Pilih provinsi dan kota di tab 'Hari Ini' untuk menampilkan jadwal sebulan.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
+                    item(key = "month_empty", contentType = "notice") {
+                        Text(if (state.loading) "Memuat jadwal sebulan…" else "Pilih provinsi dan kota untuk melihat jadwal sebulan.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -653,17 +398,19 @@ fun PrayerScreen(
         RegionPickerDialog(
             isProvince = isProvince,
             title = if (isProvince) "Pilih Provinsi" else "Pilih Kota / Kabupaten",
-            options = if (isProvince) state.provinces else state.cities,
+            options = if (isProvince) state.provinces else state.cities.takeIf { cityPickerProvince == null || cityPickerProvince == state.selectedProvince }.orEmpty(),
             selectedOption = if (isProvince) state.selectedProvince else settings.prayerCity,
             loading = state.loadingRegions,
             onDismiss = { picker = 0 },
             onSelect = { selected ->
                 if (isProvince) {
+                    cityPickerProvince = selected
                     features.loadRegions(selected)
+                    picker = 2
                 } else {
                     features.selectCity(selected)
+                    picker = 0
                 }
-                picker = 0
             }
         )
     }
@@ -681,9 +428,9 @@ private fun PrayerHeroCard(
     fromCache: Boolean
 ) {
     val gradientColors = listOf(
-        Color(0xFF0284C7),
-        Color(0xFF0369A1),
-        Color(0xFF0F172A)
+        Color(0xFF34324F),
+        Color(0xFF252439),
+        Color(0xFF171728)
     )
 
     Card(
@@ -723,7 +470,7 @@ private fun PrayerHeroCard(
                         Icon(
                             imageVector = Icons.Outlined.AccessTime,
                             contentDescription = null,
-                            tint = Color(0xFF38BDF8),
+                            tint = Color(0xFFE6B28B),
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
@@ -732,7 +479,7 @@ private fun PrayerHeroCard(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.8.sp
                             ),
-                            color = Color(0xFFE0F2FE)
+                            color = Color(0xFFF4DFCF)
                         )
                     }
 
@@ -756,7 +503,7 @@ private fun PrayerHeroCard(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             ),
-                            color = Color(0xFF5EEAD4)
+                            color = Color(0xFFE9BC99)
                         )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -824,7 +571,7 @@ private fun PrayerHeroCard(
                             Icon(
                                 imageVector = Icons.Outlined.LocationOn,
                                 contentDescription = null,
-                                tint = Color(0xFF38BDF8),
+                                tint = Color(0xFFE6B28B),
                                 modifier = Modifier.size(15.dp)
                             )
                             Text(
@@ -843,7 +590,7 @@ private fun PrayerHeroCard(
 
                     if (fromCache) {
                         Surface(
-                            color = Color(0xFF0D9488).copy(alpha = 0.8f),
+                            color = Color(0xFFC48865).copy(alpha = 0.8f),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Row(
@@ -1709,4 +1456,29 @@ private fun RegionPickerDialog(
             }
         }
     )
+}
+
+@Composable
+private fun PrayerSegmentTab(label: String, selected: Boolean, icon: ImageVector,
+    modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(modifier.height(48.dp).clip(RoundedCornerShape(10.dp))
+        .then(if (selected) Modifier.background(Brush.verticalGradient(listOf(Color(0xFFBA805B), Color(0xFF8B5035)))) else Modifier)
+        .clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        val tint = if (selected) Color(0xFFFFF5EA) else MaterialTheme.colorScheme.onSurface
+        Icon(icon, null, tint = tint, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.width(8.dp)); Text(label, color = tint, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+private fun MockupPrayerRow(name: String, time: String, highlighted: Boolean, icon: ImageVector) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 46.dp).clip(RoundedCornerShape(10.dp))
+        .then(if (highlighted) Modifier.background(Brush.horizontalGradient(listOf(Color(0xFFC69470), Color(0xFF9C5F3E)))) else Modifier)
+        .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        val text = if (highlighted) Color.White else MaterialTheme.colorScheme.onSurface
+        Icon(icon, null, tint = if (highlighted) Color.White else MaterialTheme.colorScheme.primary, modifier = Modifier.size(21.dp))
+        Spacer(Modifier.width(13.dp))
+        Text(name, style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif), color = text, modifier = Modifier.weight(1f))
+        Text(time, style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold), color = text)
+    }
 }

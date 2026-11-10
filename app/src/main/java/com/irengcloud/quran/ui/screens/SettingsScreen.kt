@@ -1,69 +1,58 @@
 package com.irengcloud.quran.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Audiotrack
-import androidx.compose.material.icons.outlined.BrightnessAuto
-import androidx.compose.material.icons.outlined.CloudDone
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.FormatSize
-import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.Spellcheck
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
+import com.irengcloud.quran.R
 import com.irengcloud.quran.data.local.ReaderSettingsState
 import com.irengcloud.quran.data.local.ThemeMode
-import com.irengcloud.quran.ui.components.VerseNumberBadge
-import com.irengcloud.quran.ui.components.DailyReminderSettings
 import com.irengcloud.quran.ui.DailyFeaturesViewModel
+import com.irengcloud.quran.ui.components.AppArtwork
+import com.irengcloud.quran.ui.components.DailyReminderSettings
+import com.irengcloud.quran.ui.components.SettingsLabel
+import com.irengcloud.quran.ui.components.SettingsSwitch
 import com.irengcloud.quran.ui.theme.AmiriQuranFontFamily
-import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
+
+private val HeaderIndigo = Color(0xFF242338)
+private val CopperGradient = Brush.verticalGradient(listOf(Color(0xFFAC7653), Color(0xFF79452D)))
+private val HeaderIvory = Color(0xFFFFF1E3)
+private val ArabicSizePresets = listOf(22, 26, 30, 44)
 
 @Composable
 fun SettingsScreen(
@@ -76,583 +65,247 @@ fun SettingsScreen(
     onAutoNextAudioChange: (Boolean) -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
     dailyFeatures: DailyFeaturesViewModel,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier.fillMaxSize(),
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
+    val panelShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    BoxWithConstraints(
+        modifier.fillMaxSize().background(scheme.background),
         contentAlignment = Alignment.TopCenter
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .widthIn(max = 840.dp)
-                .testTag("settings_screen_column"),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Header Screen
-            item(key = "heading") {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    Text(
-                        text = "Pengaturan",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Sesuaikan kenyamanan membaca & preferensi aplikasi",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Hero Card: Modern ocean blue gradient banner matching HomeScreen & PrayerScreen
-            item(key = "hero_banner") {
-                SettingsHeroCard(settings = settings)
-            }
-
-            // Daily Reading Reminder Card
-            item(key = "daily_reminder") {
-                DailyReminderSettings(settings, dailyFeatures)
-            }
-
-            // Live Verse Preview Card
-            item(key = "preview") {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("settings_live_preview_card"),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                VerseNumberBadge(number = 1, size = 34.dp, isHighlighted = true)
-                                Column {
-                                    Text(
-                                        text = "Pratinjau Tampilan Ayat",
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "Hasil langsung dari pengaturan di bawah",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = "Arab ${settings.arabicFontSizeSp}sp",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Arabic verse display
-                        Text(
-                            text = "بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحِيْمِ",
-                            style = MaterialTheme.typography.displayLarge.copy(
-                                fontFamily = AmiriQuranFontFamily,
-                                fontSize = settings.arabicFontSizeSp.sp,
-                                lineHeight = (settings.arabicFontSizeSp * 2.0f).sp,
-                                textDirection = TextDirection.Rtl
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Right,
-                            modifier = Modifier.fillMaxWidth()
+        val density = LocalDensity.current
+        val scale = (maxWidth / 380.dp).coerceIn(1f, 1.26f)
+        CompositionLocalProvider(LocalDensity provides Density(density.density * scale, density.fontScale)) {
+            LazyColumn(
+                Modifier.widthIn(max = 640.dp).fillMaxSize().testTag("settings_screen_column"),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                item(key = "header") {
+                    Box(Modifier.fillMaxWidth().heightIn(min = 180.dp).background(HeaderIndigo)) {
+                        AppArtwork(
+                            R.drawable.settings_header_v2,
+                            Modifier.matchParentSize().padding(bottom = 12.dp),
+                            contentScale = ContentScale.FillBounds
                         )
-
-                        // Transliteration
-                        if (settings.showLatin) {
-                            Spacer(modifier = Modifier.height(10.dp))
+                        Column(
+                            Modifier.align(Alignment.TopCenter).padding(start = 53.dp, end = 53.dp, top = 14.dp, bottom = 38.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Outlined.Settings, null, Modifier.size(34.dp), tint = Color(0xFFE9B182))
                             Text(
-                                text = "Bismillāhir-raḥmānir-raḥīm(i).",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontStyle = FontStyle.Italic,
-                                    fontSize = (settings.translationFontSizeSp - 1).coerceAtLeast(12).sp,
-                                    textDirection = TextDirection.Ltr
-                                ),
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.Left,
-                                modifier = Modifier.fillMaxWidth()
+                                "Pengaturan", style = MaterialTheme.typography.headlineMedium,
+                                color = HeaderIvory
+                            )
+                            Text(
+                                "Atur pengalaman membaca\nAl-Qur’an sesuai preferensi Anda",
+                                Modifier.widthIn(max = 245.dp).padding(top = 3.dp),
+                                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif),
+                                color = HeaderIvory, textAlign = TextAlign.Center
                             )
                         }
+                        IconButton(onClick = onBack, modifier = Modifier.align(Alignment.TopStart).padding(9.dp)) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Kembali", tint = HeaderIvory)
+                        }
+                        Spacer(
+                            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(28.dp)
+                                .background(scheme.background, panelShape)
+                        )
+                    }
+                }
 
-                        // Indonesian Translation
-                        if (settings.showTranslation) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Dengan nama Allah Yang Maha Pengasih, Maha Penyayang.",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = settings.translationFontSizeSp.sp,
-                                    lineHeight = (settings.translationFontSizeSp * 1.55f).sp,
-                                    textDirection = TextDirection.Ltr
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Left,
-                                modifier = Modifier.fillMaxWidth()
+                item(key = "arabic_size") {
+                    Column(
+                        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SettingsLabel(Icons.Outlined.FormatSize, "Ukuran Huruf Baca", "Atur ukuran teks ayat Arab.")
+                        ArabicSizeSelector(settings.arabicFontSizeSp, onArabicFontSizeChange)
+                    }
+                    SettingsDivider()
+                }
+
+                item(key = "translation") {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        SettingsLabel(
+                            Icons.Outlined.Translate,
+                            "Tampilkan Terjemahan",
+                            "Menampilkan terjemahan bahasa Indonesia saat membaca ayat.",
+                            Modifier.weight(1f)
+                        )
+                        SettingsSwitch(
+                            settings.showTranslation, onShowTranslationChange, "Tampilkan Terjemahan",
+                            Modifier.testTag("toggle_translation")
+                        )
+                    }
+                    SettingsDivider()
+                }
+
+                item(key = "theme") {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 13.dp),
+                        verticalArrangement = Arrangement.spacedBy(11.dp)
+                    ) {
+                        SettingsLabel(Icons.Outlined.Palette, "Tema Tampilan", "Pilih tema antarmuka aplikasi.")
+                        Row(
+                            Modifier.fillMaxWidth().selectableGroup(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            ThemeOption("Klasik", "Midnight", R.drawable.settings_classic, ThemeMode.CLASSIC,
+                                settings.themeMode, onThemeModeChange, Modifier.weight(1f))
+                            ThemeOption("Terang", "Ivory", R.drawable.settings_ivory, ThemeMode.LIGHT,
+                                settings.themeMode, onThemeModeChange, Modifier.weight(1f))
+                            ThemeOption("Gelap", "Indigo", R.drawable.settings_dark, ThemeMode.DARK,
+                                settings.themeMode, onThemeModeChange, Modifier.weight(1f))
+                        }
+                    }
+                    SettingsDivider()
+                }
+
+                item(key = "reminder") {
+                    DailyReminderSettings(
+                        settings, dailyFeatures,
+                        Modifier.padding(horizontal = 20.dp, vertical = 13.dp),
+                        showTestAction = showAdvanced
+                    )
+                }
+
+                item(key = "advanced") {
+                    Surface(
+                        onClick = { showAdvanced = !showAdvanced },
+                        shape = RoundedCornerShape(12.dp),
+                        color = scheme.surface,
+                        border = BorderStroke(1.dp, scheme.outlineVariant),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SettingsLabel(Icons.Outlined.Tune, "Pengaturan Lainnya", modifier = Modifier.weight(1f))
+                            Icon(
+                                if (showAdvanced) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                                if (showAdvanced) "Tutup" else "Buka",
+                                tint = scheme.primary
                             )
                         }
                     }
                 }
-            }
 
-            // Typography & Ayat View Options
-            item(key = "typography") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
+                if (showAdvanced) item(key = "advanced_controls") {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Section Header
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        Text("Pratinjau Tampilan Ayat", style = MaterialTheme.typography.titleMedium)
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().testTag("settings_live_preview_card"),
+                            shape = RoundedCornerShape(12.dp),
+                            color = scheme.surface
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.primaryContainer),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.FormatSize,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Column {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
-                                    text = "Tipografi & Tampilan Ayat",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    "بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحِيْمِ",
+                                    Modifier.fillMaxWidth(),
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = AmiriQuranFontFamily,
+                                        fontSize = settings.arabicFontSizeSp.sp,
+                                        lineHeight = (settings.arabicFontSizeSp * 1.8f).sp,
+                                        textDirection = TextDirection.Rtl
+                                    ),
+                                    textAlign = TextAlign.Right
                                 )
-                                Text(
-                                    text = "Atur ukuran teks Arab, transliterasi Latin, dan terjemahan",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        // Arabic font slider
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Ukuran Font Arab (Khatt Mushaf)",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        text = "${settings.arabicFontSizeSp} sp",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                    )
+                                if (settings.showLatin) {
+                                    Text("Bismillāhir-raḥmānir-raḥīm(i).", fontStyle = FontStyle.Italic,
+                                        fontSize = (settings.translationFontSizeSp - 1).coerceAtLeast(12).sp)
                                 }
-                            }
-                            Slider(
-                                value = settings.arabicFontSizeSp.toFloat(),
-                                onValueChange = { onArabicFontSizeChange(it.roundToInt()) },
-                                valueRange = 22f..44f,
-                                steps = 10,
-                                modifier = Modifier.testTag("arabic_font_slider")
-                            )
-                        }
-
-                        // Translation font slider
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Ukuran Font Terjemahan & Latin",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        text = "${settings.translationFontSizeSp} sp",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                            Slider(
-                                value = settings.translationFontSizeSp.toFloat(),
-                                onValueChange = { onTranslationFontSizeChange(it.roundToInt()) },
-                                valueRange = 12f..22f,
-                                steps = 9,
-                                modifier = Modifier.testTag("translation_font_slider")
-                            )
-                        }
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                        // Toggle Latin
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Spellcheck,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Column {
-                                    Text(
-                                        text = "Teks Transliterasi Latin",
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Membantu membaca pelafalan tajwid ayat Arab",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            Switch(
-                                checked = settings.showLatin,
-                                onCheckedChange = onShowLatinChange,
-                                modifier = Modifier.testTag("toggle_show_latin")
-                            )
-                        }
-
-                        // Toggle Translation
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Description,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Column {
-                                    Text(
-                                        text = "Terjemahan Bahasa Indonesia",
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Arti ayat resmi Kementerian Agama RI",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            Switch(
-                                checked = settings.showTranslation,
-                                onCheckedChange = onShowTranslationChange,
-                                modifier = Modifier.testTag("toggle_show_translation")
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Audio Murottal & Theme Card
-            item(key = "audio_theme") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Section Header
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.secondaryContainer),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Palette,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "Audio Murottal & Tema Tampilan",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Kelola pemutaran murottal dan skema visual aplikasi",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        // Toggle Auto-Next
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Audiotrack,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Column {
-                                    Text(
-                                        text = "Putar Beruntun Otomatis",
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Otomatis lanjut ke ayat berikutnya saat murottal selesai",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            Switch(
-                                checked = settings.autoNextAudio,
-                                onCheckedChange = onAutoNextAudioChange,
-                                modifier = Modifier.testTag("toggle_auto_next_audio")
-                            )
-                        }
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                        // Theme Mode Selector
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(
-                                text = "Pilihan Tema Aplikasi:",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                val modes = listOf(
-                                    Triple(ThemeMode.SYSTEM, "Sistem", Icons.Outlined.BrightnessAuto),
-                                    Triple(ThemeMode.LIGHT, "Terang", Icons.Outlined.LightMode),
-                                    Triple(ThemeMode.DARK, "Gelap", Icons.Outlined.DarkMode)
-                                )
-                                modes.forEach { (mode, label, icon) ->
-                                    val selected = settings.themeMode == mode
-                                    FilterChip(
-                                        selected = selected,
-                                        onClick = { onThemeModeChange(mode) },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = icon,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp),
-                                                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        },
-                                        label = {
-                                            Text(
-                                                text = label,
-                                                style = MaterialTheme.typography.labelMedium.copy(
-                                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                                )
-                                            )
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                        ),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .testTag("theme_chip_${mode.name.lowercase()}")
-                                    )
+                                if (settings.showTranslation) {
+                                    Text("Dengan nama Allah Yang Maha Pengasih, Maha Penyayang.",
+                                        fontSize = settings.translationFontSizeSp.sp,
+                                        lineHeight = (settings.translationFontSizeSp * 1.55f).sp)
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            // Offline Cache Info Card
-            item(key = "offline") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primaryContainer),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.CloudDone,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "Penyimpanan Offline & Cache",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "$cachedSurahCount dari 114 surah tersimpan di perangkat.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        Text("Ukuran teks Arab · ${settings.arabicFontSizeSp} sp", style = MaterialTheme.typography.bodyMedium)
+                        Slider(
+                            value = settings.arabicFontSizeSp.toFloat(),
+                            onValueChange = { onArabicFontSizeChange(it.roundToInt()) },
+                            valueRange = 22f..44f, steps = 10, modifier = Modifier.testTag("arabic_font_slider")
+                        )
+                        Text("Ukuran terjemahan dan Latin · ${settings.translationFontSizeSp} sp",
+                            style = MaterialTheme.typography.bodyMedium)
+                        Slider(
+                            value = settings.translationFontSizeSp.toFloat(),
+                            onValueChange = { onTranslationFontSizeChange(it.roundToInt()) },
+                            valueRange = 12f..22f, steps = 9, modifier = Modifier.testTag("translation_font_slider")
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SettingsLabel(Icons.Outlined.Spellcheck, "Tampilkan Latin", modifier = Modifier.weight(1f))
+                            SettingsSwitch(settings.showLatin, onShowLatinChange, "Tampilkan Latin",
+                                Modifier.testTag("toggle_latin"))
                         }
-
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SettingsLabel(Icons.Outlined.Audiotrack, "Putar Beruntun Otomatis", modifier = Modifier.weight(1f))
+                            SettingsSwitch(settings.autoNextAudio, onAutoNextAudioChange, "Putar Beruntun Otomatis",
+                                Modifier.testTag("toggle_auto_next_audio"))
+                        }
+                        FilterChip(
+                            selected = settings.themeMode == ThemeMode.SYSTEM,
+                            onClick = { onThemeModeChange(ThemeMode.SYSTEM) },
+                            label = { Text("Ikuti tema sistem") },
+                            modifier = Modifier.testTag("theme_chip_system")
+                        )
+                        SettingsLabel(Icons.Outlined.CloudDone, "Penyimpanan Offline",
+                            "$cachedSurahCount dari 114 surah tersimpan di perangkat.")
                         LinearProgressIndicator(
                             progress = { (cachedSurahCount / 114f).coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-
-                        Text(
-                            text = "Surah yang tersimpan dapat dibuka secara instan tanpa membutuhkan koneksi internet.",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
             }
+        }
+    }
+}
 
-            // App Footer Note
-            item(key = "footer") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+@Composable
+private fun ArabicSizeSelector(fontSize: Int, onSizeChange: (Int) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(14.dp)
+    val selectedPreset = ArabicSizePresets.minBy { abs(it - fontSize) }
+    Surface(
+        modifier = Modifier.fillMaxWidth().shadow(3.dp, shape),
+        color = scheme.surface,
+        shape = shape,
+        border = BorderStroke(1.dp, scheme.outlineVariant)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(4.dp).selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            ArabicSizePresets.forEachIndexed { index, size ->
+                val selected = selectedPreset == size
+                val optionShape = RoundedCornerShape(10.dp)
+                Box(
+                    Modifier.weight(1f).heightIn(min = 42.dp).clip(optionShape)
+                        .then(if (selected) Modifier.background(CopperGradient) else Modifier)
+                        .selectable(selected, role = Role.RadioButton, onClick = { onSizeChange(size) })
+                        .semantics {
+                            contentDescription = "Ukuran ${if (selected) fontSize else size} sp"
+                        }
+                        .testTag("arabic_size_$size"),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "بَارَكَ اللّٰهُ فِيْكُمْ",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = AmiriQuranFontFamily,
-                            fontSize = 20.sp
-                        ),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        text = "NurQuran • Al-Qur'an Digital & Tafsir v1.0",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        listOf("A", "A◊", "A⁺⁺", "A⁺⁺⁺")[index],
+                        fontFamily = FontFamily.Serif,
+                        fontSize = (18 + index * 2).sp,
+                        color = if (selected) HeaderIvory else scheme.onSurface
                     )
                 }
             }
@@ -660,139 +313,66 @@ fun SettingsScreen(
     }
 }
 
-/**
- * Modern Hero Card matching the visual language of HomeScreen and PrayerScreen.
- */
 @Composable
-private fun SettingsHeroCard(settings: ReaderSettingsState) {
-    val gradientColors = listOf(
-        Color(0xFF0284C7),
-        Color(0xFF0369A1),
-        Color(0xFF0F172A)
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.linearGradient(gradientColors))
-                .drawBehind {
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.06f),
-                        radius = size.minDimension * 0.7f,
-                        center = Offset(size.width * 0.9f, size.height * 0.15f)
-                    )
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.05f),
-                        radius = size.minDimension * 0.45f,
-                        center = Offset(size.width * 0.82f, size.height * 0.88f)
-                    )
-                }
-                .padding(20.dp)
+private fun ThemeOption(
+    title: String,
+    subtitle: String,
+    artwork: Int,
+    mode: ThemeMode,
+    currentMode: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    val selected = mode == currentMode
+    val shape = RoundedCornerShape(13.dp)
+    Box(modifier) {
+        Surface(
+            Modifier.fillMaxWidth().shadow(3.dp, shape).clip(shape)
+                .selectable(selected, role = Role.RadioButton, onClick = { onSelect(mode) })
+                .testTag("theme_chip_${mode.name.lowercase()}"),
+            shape = shape,
+            color = scheme.surface,
+            border = BorderStroke(1.dp, if (selected) scheme.primary else scheme.outlineVariant)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Top row: Pill badge & Arabic Calligraphy
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Tune,
-                            contentDescription = null,
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "PREFERENSI BACAAN",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
-                            ),
-                            color = Color(0xFFE0F2FE)
-                        )
-                    }
-
-                    Text(
-                        text = "التَّهْيِئَة",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontFamily = AmiriQuranFontFamily,
-                            fontSize = 26.sp,
-                            lineHeight = 32.sp
-                        ),
-                        color = Color.White.copy(alpha = 0.95f)
-                    )
-                }
-
-                // Middle: Headline description
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Kenyamanan Tilawah Anda",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
-                    )
-                    Text(
-                        text = "Atur ukuran teks Arab, transliterasi Latin, audio murottal, dan pengingat harian agar tilawah semakin nyaman.",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = Color.White.copy(alpha = 0.85f)
-                    )
-                }
-
-                // Bottom summary pills
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        color = Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(
-                            text = "Font ${settings.arabicFontSizeSp}sp",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    val reminderStatus = if (settings.dailyReminderEnabled) {
-                        "Pengingat ${String.format(Locale.US, "%02d.%02d", settings.dailyReminderHour, settings.dailyReminderMinute)}"
-                    } else {
-                        "Pengingat Off"
-                    }
-                    Surface(
-                        color = Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(
-                            text = reminderStatus,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    Surface(
-                        color = Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(
-                            text = if (settings.autoNextAudio) "Auto-Next On" else "Auto-Next Off",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
+            Column(
+                Modifier.padding(7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Image(
+                    painterResource(artwork), null,
+                    Modifier.fillMaxWidth().aspectRatio(1.56f).clip(RoundedCornerShape(9.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Text(
+                    title, Modifier.padding(top = 5.dp),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "($subtitle)", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Serif),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        if (selected) {
+            Box(
+                Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-2).dp)
+                    .size(24.dp).clip(CircleShape).background(CopperGradient),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.Check, null, Modifier.size(16.dp), tint = HeaderIvory)
             }
         }
     }
+}
+
+@Composable
+private fun SettingsDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 14.dp),
+        color = MaterialTheme.colorScheme.outlineVariant
+    )
 }

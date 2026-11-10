@@ -18,7 +18,7 @@ import com.irengcloud.quran.data.QiblaLocation
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "nurquran_prefs")
 
 enum class ThemeMode {
-    SYSTEM, LIGHT, DARK
+    SYSTEM, LIGHT, DARK, CLASSIC
 }
 
 enum class KhatamTargetMode(val label: String, val unitLabel: String) {
@@ -43,7 +43,7 @@ data class ReaderSettingsState(
     val showTranslation: Boolean = true,
     val autoNextAudio: Boolean = true,
     val autoScrollSpeedLevel: Int = 3,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val themeMode: ThemeMode = ThemeMode.CLASSIC,
     val khatamTargetMode: KhatamTargetMode = KhatamTargetMode.VERSES,
     val dailyKhatamTargetAyat: Int = 20,
     val dailyKhatamTargetSurah: Int = 1,
@@ -92,6 +92,8 @@ class UserPreferencesRepository(context: Context) {
         val LOCATION_ALTITUDE = doublePreferencesKey("qibla_altitude")
         val LOCATION_ACCURACY = floatPreferencesKey("qibla_accuracy")
         val LOCATION_TIME = longPreferencesKey("qibla_location_time")
+        val LOCATION_REGION_PROVINCE = stringPreferencesKey("qibla_region_province")
+        val LOCATION_REGION_CITY = stringPreferencesKey("qibla_region_city")
     }
 
     val qiblaLocationFlow: Flow<QiblaLocation?> = store.data.map { prefs ->
@@ -100,7 +102,8 @@ class UserPreferencesRepository(context: Context) {
         if (latitude == null || longitude == null || !latitude.isFinite() || !longitude.isFinite() ||
             latitude !in -90.0..90.0 || longitude !in -180.0..180.0) null
         else QiblaLocation(latitude, longitude, prefs[Keys.LOCATION_ALTITUDE] ?: 0.0,
-            prefs[Keys.LOCATION_ACCURACY] ?: 0f, prefs[Keys.LOCATION_TIME] ?: 0L)
+            prefs[Keys.LOCATION_ACCURACY] ?: 0f, prefs[Keys.LOCATION_TIME] ?: 0L,
+            prefs[Keys.LOCATION_REGION_PROVINCE].orEmpty(), prefs[Keys.LOCATION_REGION_CITY].orEmpty())
     }
 
     suspend fun saveQiblaLocation(location: QiblaLocation) {
@@ -110,6 +113,8 @@ class UserPreferencesRepository(context: Context) {
             prefs[Keys.LOCATION_ALTITUDE] = location.altitude
             prefs[Keys.LOCATION_ACCURACY] = location.accuracyMeters
             prefs[Keys.LOCATION_TIME] = location.updatedAt
+            prefs[Keys.LOCATION_REGION_PROVINCE] = location.regionProvince
+            prefs[Keys.LOCATION_REGION_CITY] = location.regionCity
         }
     }
 
@@ -126,8 +131,8 @@ class UserPreferencesRepository(context: Context) {
     }
 
     val readerSettingsFlow: Flow<ReaderSettingsState> = store.data.map { prefs ->
-        val themeStr = prefs[Keys.THEME_MODE] ?: ThemeMode.SYSTEM.name
-        val themeMode = runCatching { ThemeMode.valueOf(themeStr) }.getOrDefault(ThemeMode.SYSTEM)
+        val themeStr = prefs[Keys.THEME_MODE] ?: ThemeMode.CLASSIC.name
+        val themeMode = runCatching { ThemeMode.valueOf(themeStr) }.getOrDefault(ThemeMode.CLASSIC)
         val targetModeStr = prefs[Keys.KHATAM_TARGET_MODE] ?: KhatamTargetMode.VERSES.name
         val targetMode = runCatching { KhatamTargetMode.valueOf(targetModeStr) }
             .getOrDefault(KhatamTargetMode.VERSES)
@@ -161,10 +166,19 @@ class UserPreferencesRepository(context: Context) {
         }
     }
 
-    suspend fun updatePrayerLocation(province: String, city: String) {
+    suspend fun updatePrayerLocation(province: String, city: String, clearQiblaLocation: Boolean = false) {
         store.edit { prefs ->
             prefs[Keys.PRAYER_PROVINCE] = province
             prefs[Keys.PRAYER_CITY] = city
+            if (clearQiblaLocation) {
+                prefs.remove(Keys.LOCATION_LATITUDE)
+                prefs.remove(Keys.LOCATION_LONGITUDE)
+                prefs.remove(Keys.LOCATION_ALTITUDE)
+                prefs.remove(Keys.LOCATION_ACCURACY)
+                prefs.remove(Keys.LOCATION_TIME)
+                prefs.remove(Keys.LOCATION_REGION_PROVINCE)
+                prefs.remove(Keys.LOCATION_REGION_CITY)
+            }
         }
     }
 

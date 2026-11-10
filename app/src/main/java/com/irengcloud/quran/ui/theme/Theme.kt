@@ -7,6 +7,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 private val DarkColorScheme = darkColorScheme(
@@ -55,6 +56,12 @@ private val LightColorScheme = lightColorScheme(
     outlineVariant = LightOutlineVariant
 )
 
+private val IvoryColorScheme = LightColorScheme.copy(
+    background = Color(0xFFFFF8EE),
+    surface = Color(0xFFFFFDF9),
+    surfaceVariant = Color(0xFFF6EBDE)
+)
+
 val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
@@ -66,9 +73,14 @@ val AppShapes = Shapes(
 @Composable
 fun NurQuranTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    ivoryTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when {
+        darkTheme -> DarkColorScheme
+        ivoryTheme -> IvoryColorScheme
+        else -> LightColorScheme
+    }
 
     MaterialTheme(
         colorScheme = colorScheme,

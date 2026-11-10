@@ -1,5 +1,6 @@
 package com.irengcloud.quran
 
+import android.app.Activity
 import android.os.Bundle
 import android.content.Intent
 import androidx.activity.ComponentActivity
@@ -31,6 +32,15 @@ import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -42,7 +52,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,8 +65,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.irengcloud.quran.data.local.ThemeMode
@@ -65,6 +79,8 @@ import com.irengcloud.quran.ui.screens.PrayerScreen
 import com.irengcloud.quran.ui.components.MiniAudioPlayerBar
 import com.irengcloud.quran.ui.components.TafsirBottomSheet
 import com.irengcloud.quran.ui.screens.BookmarkKhatamScreen
+import com.irengcloud.quran.ui.screens.MoreScreen
+import com.irengcloud.quran.ui.screens.MurottalScreen
 import com.irengcloud.quran.ui.screens.HomeScreen
 import com.irengcloud.quran.ui.screens.SearchAyatScreen
 import com.irengcloud.quran.ui.screens.SettingsScreen
@@ -101,6 +117,12 @@ enum class AppNavTab(
         unselectedIcon = Icons.Outlined.AccessTime,
         testTag = "nav_tab_prayer"
     ),
+    MORE(
+        label = "Lainnya",
+        selectedIcon = Icons.Filled.Apps,
+        unselectedIcon = Icons.Filled.Apps,
+        testTag = "nav_tab_more"
+    ),
     SETTINGS(
         label = "Pengaturan",
         selectedIcon = Icons.Filled.Settings,
@@ -131,11 +153,14 @@ class MainActivity : ComponentActivity() {
 
             val useDarkTheme = when (readerSettings.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                ThemeMode.LIGHT -> false
+                ThemeMode.CLASSIC, ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
 
-            NurQuranTheme(darkTheme = useDarkTheme) {
+            NurQuranTheme(
+                darkTheme = useDarkTheme,
+                ivoryTheme = readerSettings.themeMode == ThemeMode.LIGHT
+            ) {
                 NurQuranApp(viewModel = viewModel, reminderOpenRequest = reminderOpenRequest,
                     onReminderHandled = { reminderOpenRequest = 0; intent.action = Intent.ACTION_MAIN })
             }
@@ -165,7 +190,9 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
 
     val tabStateHolder = rememberSaveableStateHolder()
     var currentTab by rememberSaveable { mutableStateOf(AppNavTab.SURAH) }
+    var bookmarkSection by rememberSaveable { mutableStateOf(1) }
     var isReadingSurahDetail by rememberSaveable { mutableStateOf(false) }
+    var murottalStartVerse by rememberSaveable { mutableStateOf<Int?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -177,6 +204,8 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
     }
 
     val openSurahAction: (Int, Int?) -> Unit = { surahNomor, targetAyat ->
+        murottalStartVerse = null
+        tabStateHolder.removeState("surah_reader")
         viewModel.openSurahDetail(surahNomor, targetAyat)
         isReadingSurahDetail = true
     }
@@ -184,14 +213,41 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
     LaunchedEffect(reminderOpenRequest) {
         if (reminderOpenRequest > 0) {
             val saved = viewModel.awaitLastRead()
+            murottalStartVerse = null
+            tabStateHolder.removeState("surah_reader")
             viewModel.openSurahDetail(saved.surahNomor, saved.ayatNomor)
             isReadingSurahDetail = true
             onReminderHandled()
         }
     }
 
+    BackHandler(enabled = !isReadingSurahDetail && currentTab in listOf(AppNavTab.SEARCH, AppNavTab.PRAYER, AppNavTab.SETTINGS)) {
+        currentTab = AppNavTab.MORE
+    }
+    BackHandler(enabled = !isReadingSurahDetail && currentTab == AppNavTab.MORE) {
+        currentTab = AppNavTab.SURAH
+    }
+
     BackHandler(enabled = isReadingSurahDetail) {
-        isReadingSurahDetail = false
+        if (murottalStartVerse != null) murottalStartVerse = null
+        else isReadingSurahDetail = false
+    }
+
+    val fullScreenPage = isReadingSurahDetail || currentTab == AppNavTab.SETTINGS
+    val pageBackground = when {
+        isReadingSurahDetail -> Color(0xFF252439)
+        currentTab == AppNavTab.SEARCH -> Color(0xFF202034)
+        currentTab == AppNavTab.SETTINGS -> Color(0xFF242338)
+        else -> MaterialTheme.colorScheme.background
+    }
+    val navigationBackground = if (fullScreenPage) pageBackground else MaterialTheme.colorScheme.surface
+    val view = LocalView.current
+    SideEffect {
+        (view.context as? Activity)?.window?.let { window ->
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = pageBackground.luminance() > 0.5f
+            controller.isAppearanceLightNavigationBars = navigationBackground.luminance() > 0.5f
+        }
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -199,27 +255,48 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
 
         Scaffold(
             modifier = Modifier.fillMaxSize(),
+            containerColor = pageBackground,
             contentWindowInsets = WindowInsets.safeDrawing,
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             bottomBar = {
-                if (!isExpandedScreen && !isReadingSurahDetail) {
+                if (!isExpandedScreen && !fullScreenPage) {
                     NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surface,
                         tonalElevation = 3.dp
                     ) {
-                        AppNavTab.entries.forEach { tab ->
-                            val selected = currentTab == tab
+                        val labels = listOf("Beranda", "Baca", "Penanda", "Lainnya")
+                        labels.forEachIndexed { index, label ->
+                            val selected = when (index) {
+                                0 -> currentTab == AppNavTab.SURAH
+                                2 -> currentTab == AppNavTab.BOOKMARK_KHATAM
+                                3 -> currentTab != AppNavTab.SURAH && currentTab != AppNavTab.BOOKMARK_KHATAM
+                                else -> false
+                            }
                             NavigationBarItem(
                                 selected = selected,
-                                onClick = { currentTab = tab },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                        contentDescription = tab.label
-                                    )
+                                onClick = {
+                                    when (index) {
+                                        0 -> currentTab = AppNavTab.SURAH
+                                        1 -> openSurahAction(lastRead.surahNomor, lastRead.ayatNomor)
+                                        2 -> { bookmarkSection = 1; currentTab = AppNavTab.BOOKMARK_KHATAM }
+                                        3 -> currentTab = AppNavTab.MORE
+                                    }
                                 },
-                                label = { Text(tab.label) },
-                                modifier = Modifier.testTag(tab.testTag)
+                                icon = {
+                                    Icon(when (index) {
+                                        0 -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
+                                        1 -> Icons.AutoMirrored.Outlined.MenuBook
+                                        2 -> if (selected) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder
+                                        else -> Icons.Filled.Apps
+                                    }, label)
+                                },
+                                label = { Text(label) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = Color.Transparent
+                                ),
+                                modifier = Modifier.testTag("nav_mockup_$index")
                             )
                         }
                     }
@@ -242,6 +319,7 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
                                 selected = selected,
                                 onClick = {
                                     isReadingSurahDetail = false
+                                    murottalStartVerse = null
                                     currentTab = tab
                                 },
                                 icon = {
@@ -258,62 +336,72 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
                 }
 
                 Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                    AnimatedContent(
-                        targetState = isReadingSurahDetail,
-                        transitionSpec = {
-                            fadeIn(animationSpec = tween(durationMillis = 75)).togetherWith(
-                                fadeOut(animationSpec = tween(durationMillis = 50))
+                    key(isReadingSurahDetail) {
+                        val readingDetail = isReadingSurahDetail
+                        val startMurottal = murottalStartVerse
+                        val openedSurah = surahDetailState.surah
+                        if (readingDetail && startMurottal != null && openedSurah != null) {
+                            MurottalScreen(
+                                detail = surahDetailState,
+                                surah = openedSurah,
+                                initialVerse = startMurottal,
+                                settings = readerSettings,
+                                viewModel = viewModel,
+                                onBack = { murottalStartVerse = null }
                             )
-                        },
-                        label = "SurahDetailMotionTransition"
-                    ) { readingDetail ->
-                        if (readingDetail) {
-                            SurahDetailScreen(
-                                detailState = surahDetailState,
-                                bookmarks = bookmarks,
-                                lastRead = lastRead,
-                                readerSettings = readerSettings,
-                                audioState = audioState,
-                                onBack = { isReadingSurahDetail = false },
-                                onOpenOtherSurah = { nextNomor ->
-                                    viewModel.openSurahDetail(nextNomor, targetAyat = null)
-                                },
-                                onRetry = {
-                                    val currentNo = surahDetailState.surah?.nomor ?: 1
-                                    viewModel.openSurahDetail(currentNo, forceRefresh = true)
-                                },
-                                onSaveOffline = { nomor ->
-                                    viewModel.saveSurahOfflineWithTafsir(nomor)
-                                },
-                                onPlayFullSurah = { surah, ayats ->
-                                    viewModel.playFullSurahAudio(surah, ayats)
-                                },
-                                onPlaySingleAyat = { surah, ayats, nomorAyat ->
-                                    viewModel.playSingleVerseAudio(surah, ayats, nomorAyat)
-                                },
-                                onTogglePlayPauseAudio = {
-                                    viewModel.audioController.togglePlayPause()
-                                },
-                                onOpenTafsir = { surah, ayat ->
-                                    viewModel.openTafsirForAyat(surah, ayat)
-                                },
-                                onToggleBookmark = { surah, ayat ->
-                                    viewModel.toggleBookmark(surah, ayat)
-                                },
-                                onReadingPositionChange = viewModel::saveReadingPosition,
-                                onMarkLastRead = { surah, ayatNomor ->
-                                    viewModel.markLastReadAndLogKhatam(surah, ayatNomor)
-                                },
-                                onUpdateAutoScrollSpeed = { speed ->
-                                    viewModel.updateAutoScrollSpeed(speed)
-                                },
-                                onClearTargetScroll = {
-                                    viewModel.clearTargetScrollAyat()
-                                },
-                                onCopyMessage = { msg ->
-                                    viewModel.showSnackbar(msg)
-                                }
-                            )
+                        } else if (readingDetail) {
+                            tabStateHolder.SaveableStateProvider("surah_reader") {
+                                SurahDetailScreen(
+                                    detailState = surahDetailState,
+                                    bookmarks = bookmarks,
+                                    lastRead = lastRead,
+                                    readerSettings = readerSettings,
+                                    audioState = audioState,
+                                    onBack = { isReadingSurahDetail = false },
+                                    onOpenOtherSurah = { nextNomor ->
+                                        viewModel.openSurahDetail(nextNomor, targetAyat = null)
+                                    },
+                                    onRetry = {
+                                        val currentNo = surahDetailState.surah?.nomor ?: 1
+                                        viewModel.openSurahDetail(currentNo, forceRefresh = true)
+                                    },
+                                    onSaveOffline = { nomor ->
+                                        viewModel.saveSurahOfflineWithTafsir(nomor)
+                                    },
+                                    onPlayFullSurah = { surah, ayats ->
+                                        viewModel.playFullSurahAudio(surah, ayats)
+                                    },
+                                    onPlaySingleAyat = { surah, ayats, nomorAyat ->
+                                        viewModel.playSingleVerseAudio(surah, ayats, nomorAyat)
+                                    },
+                                    onTogglePlayPauseAudio = {
+                                        viewModel.audioController.togglePlayPause()
+                                    },
+                                    onOpenMurottal = { murottalStartVerse = it },
+                                    onOpenTafsir = { surah, ayat ->
+                                        viewModel.openTafsirForAyat(surah, ayat)
+                                    },
+                                    onToggleBookmark = { surah, ayat ->
+                                        viewModel.toggleBookmark(surah, ayat)
+                                    },
+                                    onReadingPositionChange = viewModel::saveReadingPosition,
+                                    onMarkLastRead = { surah, ayatNomor ->
+                                        viewModel.markLastReadAndLogKhatam(surah, ayatNomor)
+                                    },
+                                    onUpdateArabicFontSize = viewModel::updateArabicFontSize,
+                                    onUpdateShowLatin = viewModel::updateShowLatin,
+                                    onUpdateShowTranslation = viewModel::updateShowTranslation,
+                                    onUpdateAutoScrollSpeed = { speed ->
+                                        viewModel.updateAutoScrollSpeed(speed)
+                                    },
+                                    onClearTargetScroll = {
+                                        viewModel.clearTargetScrollAyat()
+                                    },
+                                    onCopyMessage = { msg ->
+                                        viewModel.showSnackbar(msg)
+                                    }
+                                )
+                            }
                         } else {
                             tabStateHolder.SaveableStateProvider(currentTab) {
                                 val tab = currentTab
@@ -331,7 +419,14 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
                                             onFilterChange = viewModel::selectSurahFilter,
                                             onRefreshSurahs = viewModel::refreshSurahList,
                                             onOpenSurah = openSurahAction,
+                                            onNavigateToPrayer = { currentTab = AppNavTab.PRAYER },
+                                            onNavigateToSettings = { currentTab = AppNavTab.SETTINGS },
+                                            onNavigateToBookmarks = {
+                                                bookmarkSection = 1
+                                                currentTab = AppNavTab.BOOKMARK_KHATAM
+                                            },
                                             onNavigateToKhatamTab = {
+                                                bookmarkSection = 0
                                                 currentTab = AppNavTab.BOOKMARK_KHATAM
                                             }
                                         )
@@ -342,18 +437,22 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
                                             searchState = searchState,
                                             readerSettings = readerSettings,
                                             onQueryChange = viewModel::updateSearchQueryInput,
+                                            onClearSearch = viewModel::clearSearch,
                                             onExecuteSearch = { q -> viewModel.executeSearch(query = q, page = 1) },
                                             onPageSizeChange = viewModel::updateSearchPageSize,
                                             onLoadNextPage = viewModel::loadNextSearchPage,
                                             onOpenSurahAtAyat = { sNomor, aNomor ->
                                                 openSurahAction(sNomor, aNomor)
                                             },
-                                            onPlaySearchItemAudio = viewModel::playSearchItemAudio
+                                            onPlaySearchItemAudio = viewModel::playSearchItemAudio,
+                                            onBack = { currentTab = AppNavTab.MORE }
                                         )
                                     }
 
                                     AppNavTab.BOOKMARK_KHATAM -> {
                                         BookmarkKhatamScreen(
+                                            selectedSection = bookmarkSection,
+                                            onSectionChange = { bookmarkSection = it },
                                             bookmarks = bookmarks,
                                             khatamLogs = khatamLogs,
                                             lastRead = lastRead,
@@ -368,6 +467,14 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
                                             onLogCustomAyats = viewModel::logCustomKhatamAyats,
                                             onLogCustomSurahs = viewModel::logCustomKhatamSurahs,
                                             onResetKhatam = viewModel::resetKhatamProgress
+                                        )
+                                    }
+
+                                    AppNavTab.MORE -> {
+                                        MoreScreen(
+                                            onOpenSearch = { currentTab = AppNavTab.SEARCH },
+                                            onOpenPrayer = { currentTab = AppNavTab.PRAYER },
+                                            onOpenSettings = { currentTab = AppNavTab.SETTINGS }
                                         )
                                     }
 
@@ -386,7 +493,8 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
                                             onShowTranslationChange = viewModel::updateShowTranslation,
                                             onAutoNextAudioChange = viewModel::updateAutoNextAudio,
                                             onThemeModeChange = viewModel::updateThemeMode,
-                                            dailyFeatures = dailyFeatures
+                                            dailyFeatures = dailyFeatures,
+                                            onBack = { currentTab = AppNavTab.MORE }
                                         )
                                     }
                                 }
@@ -395,7 +503,7 @@ fun NurQuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onRemi
                     }
 
                     // Floating Mini Audio Player Bar
-                    MiniAudioPlayerBar(
+                    if (!isReadingSurahDetail) MiniAudioPlayerBar(
                         audioState = audioState,
                         onTogglePlayPause = { viewModel.audioController.togglePlayPause() },
                         onNext = { viewModel.audioController.playNextVerse() },

@@ -1,5 +1,24 @@
 package com.irengcloud.quran.ui.screens
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.border
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Switch
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import com.irengcloud.quran.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -62,6 +81,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -85,6 +106,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
@@ -103,6 +126,8 @@ import com.irengcloud.quran.data.local.SurahEntity
 import com.irengcloud.quran.ui.AudioPlaybackState
 import com.irengcloud.quran.ui.SurahDetailUiState
 import com.irengcloud.quran.ui.components.VerseNumberBadge
+import com.irengcloud.quran.ui.components.rememberArtwork
+import com.irengcloud.quran.ui.components.TransparentArtworkPaper
 import com.irengcloud.quran.ui.theme.AmiriQuranFontFamily
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -129,6 +154,7 @@ fun SurahDetailScreen(
     onPlayFullSurah: (SurahEntity, List<AyatEntity>) -> Unit,
     onPlaySingleAyat: (SurahEntity, List<AyatEntity>, Int) -> Unit,
     onTogglePlayPauseAudio: () -> Unit,
+    onOpenMurottal: (Int) -> Unit,
     onOpenTafsir: (SurahEntity, AyatEntity) -> Unit,
     onToggleBookmark: (SurahEntity, AyatEntity) -> Unit,
     onMarkLastRead: (SurahEntity, Int) -> Unit,
@@ -136,6 +162,9 @@ fun SurahDetailScreen(
     onUpdateAutoScrollSpeed: (Int) -> Unit,
     onClearTargetScroll: () -> Unit,
     onCopyMessage: (String) -> Unit,
+    onUpdateArabicFontSize: (Int) -> Unit = {},
+    onUpdateShowLatin: (Boolean) -> Unit = {},
+    onUpdateShowTranslation: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     BackHandler(onBack = onBack)
@@ -265,82 +294,108 @@ fun SurahDetailScreen(
         )
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        TopAppBar(
-            title = {
+    var showReaderMenu by remember { mutableStateOf(false) }
+    var showReaderTools by rememberSaveable { mutableStateOf(false) }
+    var showTypography by rememberSaveable { mutableStateOf(false) }
+    val readerInk = Color(0xFF252439)
+    val readerPaper = MaterialTheme.colorScheme.background
+    val readerCopper = Color(0xFFD4A178)
+    if (showTypography) {
+        AlertDialog(onDismissRequest = { showTypography = false },
+            title = { Text("Tampilan bacaan") },
+            text = {
                 Column {
-                    Text(
-                        text = surah?.let { "${it.nomor}. ${it.namaLatin}" } ?: "Memuat Surah…",
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (surah != null) {
-                        Text(
-                            text = "${surah.arti} • ${surah.tempatTurun} • ${surah.jumlahAyat} Ayat",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    Text("Ukuran teks Arab · ${readerSettings.arabicFontSizeSp}")
+                    Slider(value = readerSettings.arabicFontSizeSp.toFloat(),
+                        onValueChange = { onUpdateArabicFontSize(it.roundToInt()) }, valueRange = 22f..44f)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tampilkan latin")
+                        Switch(readerSettings.showLatin, onUpdateShowLatin)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tampilkan terjemahan")
+                        Switch(readerSettings.showTranslation, onUpdateShowTranslation)
                     }
                 }
-            },
-            navigationIcon = {
-                IconButton(
-                    onClick = {
-                        isAutoScrolling = false
-                        onBack()
-                    },
-                    modifier = Modifier.testTag("surah_detail_back_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Kembali"
-                    )
-                }
-            },
-            actions = {
-                if (surah != null) {
-                    if (surah.nomor > 1) {
-                        IconButton(
-                            onClick = {
-                                isAutoScrolling = false
-                                onOpenOtherSurah(surah.nomor - 1)
-                            },
-                            modifier = Modifier.testTag("prev_surah_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Surah Sebelumnya",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+            }, confirmButton = { TextButton(onClick = { showTypography = false }) { Text("Selesai") } })
+    }
+
+    Scaffold(modifier = modifier.fillMaxSize(), containerColor = readerInk,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), bottomBar = {
+        if (surah != null) {
+            Surface(modifier = Modifier.fillMaxWidth().height(72.dp), color = readerInk, shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)) {
+                Row(Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = {
+                        ayats.getOrNull((currentVisibleAyat - 1).coerceAtLeast(0))?.let { onOpenTafsir(surah, it) }
+                    }, enabled = ayats.isNotEmpty(), modifier = Modifier.testTag("reader_tafsir")) {
+                        Icon(Icons.AutoMirrored.Outlined.MenuBook, null, tint = Color(0xFFF1DFCE), modifier = Modifier.size(19.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Tafsir", color = Color(0xFFF1DFCE))
                     }
-                    if (surah.nomor < 114) {
-                        IconButton(
-                            onClick = {
-                                isAutoScrolling = false
-                                onOpenOtherSurah(surah.nomor + 1)
-                            },
-                            modifier = Modifier.testTag("next_surah_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "Surah Berikutnya",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                    IconButton(onClick = {
+                        if (audioState.isActive && audioState.surahNomor == surah.nomor) onTogglePlayPauseAudio()
+                        else onPlayFullSurah(surah, ayats)
+                    }, enabled = ayats.isNotEmpty(), modifier = Modifier.size(48.dp).clip(CircleShape)
+                        .background(Brush.verticalGradient(listOf(Color(0xFFE8BB94), Color(0xFFAD7048))))
+                        .testTag("play_full_surah_button")) {
+                        Icon(if (audioState.isPlaying && audioState.surahNomor == surah.nomor) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            "Putar atau jeda murottal", tint = Color.White, modifier = Modifier.size(28.dp))
+                    }
+                    TextButton(
+                        onClick = { onOpenMurottal(currentVisibleAyat) },
+                        modifier = Modifier.testTag("reader_murottal")
+                    ) {
+                        Icon(Icons.Outlined.Headphones, null, tint = Color(0xFFF1DFCE), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Murottal", color = Color(0xFFF1DFCE))
+                    }
+                    TextButton(onClick = { showTypography = true }, modifier = Modifier.testTag("reader_typography")) {
+                        Text("Aa", color = Color(0xFFF1DFCE), fontSize = 21.sp, fontFamily = FontFamily.Serif)
                     }
                 }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background
-            )
-        )
+            }
+        }
+    }) { readerPadding ->
+    Column(modifier = Modifier.fillMaxSize().padding(readerPadding).background(readerInk)) {
+        Box(Modifier.fillMaxWidth().height(64.dp)) {
+            ReaderArtworkSlice(0f, 0.293f, Modifier.fillMaxSize())
+            Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { isAutoScrolling = false; onBack() },
+                    modifier = Modifier.testTag("surah_detail_back_button")) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Kembali", tint = Color(0xFFFFF4E6))
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = {
+                    surah?.let { chapter -> ayats.getOrNull((currentVisibleAyat - 1).coerceAtLeast(0))?.let { onToggleBookmark(chapter, it) } }
+                }) {
+                    Icon(Icons.Outlined.BookmarkBorder, "Tandai ayat yang terlihat", tint = Color(0xFFF1DFCE))
+                }
+                Box {
+                    IconButton(onClick = { showReaderMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "Menu pembaca", tint = Color(0xFFF1DFCE))
+                    }
+                    DropdownMenu(showReaderMenu, onDismissRequest = { showReaderMenu = false }) {
+                        DropdownMenuItem(text = { Text("Lompat ayat & gulir otomatis") }, onClick = {
+                            showReaderTools = !showReaderTools; showReaderMenu = false
+                        })
+                        DropdownMenuItem(text = { Text(if (surah?.isCachedOffline == true) "Perbarui unduhan offline" else "Simpan offline") },
+                            enabled = surah != null && !detailState.isOfflineSaving, onClick = {
+                                surah?.let { onSaveOffline(it.nomor) }; showReaderMenu = false
+                            })
+                        DropdownMenuItem(text = { Text("Surah sebelumnya") }, enabled = surah != null && surah.nomor > 1,
+                            onClick = { surah?.let { onOpenOtherSurah(it.nomor - 1) }; showReaderMenu = false })
+                        DropdownMenuItem(text = { Text("Surah berikutnya") }, enabled = surah != null && surah.nomor < 114,
+                            onClick = { surah?.let { onOpenOtherSurah(it.nomor + 1) }; showReaderMenu = false })
+                    }
+                }
+            }
+        }
 
         // Sticky Top Navigation & Auto-Scroll Bar (Pinned above LazyColumn so it stays fixed at top)
-        if (surah != null && ayats.isNotEmpty()) {
+        if (showReaderTools && surah != null && ayats.isNotEmpty()) {
             StickyAyatNavigationAndAutoScrollBar(
                 surah = surah,
                 ayats = ayats,
@@ -363,11 +418,11 @@ fun SurahDetailScreen(
         }
 
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             contentAlignment = Alignment.TopCenter
         ) {
             when {
-                detailState.isLoading && ayats.isEmpty() -> {
+                detailState.isLoading && ayats.isEmpty() && surah == null -> {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -432,35 +487,25 @@ fun SurahDetailScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .widthIn(max = 840.dp)
+                            .background(readerPaper)
                             .testTag("ayat_lazy_column"),
                         contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 10.dp,
-                            bottom = 120.dp
+                            start = 0.dp,
+                            end = 0.dp,
+                            top = 0.dp,
+                            bottom = 16.dp
                         ),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
                         // Surah Banner Card + Bismillah
-                        item {
-                            SurahHeaderBanner(
-                                surah = surah,
-                                isPlayingSurah = isSurahPlaying,
-                                isOfflineSaving = detailState.isOfflineSaving,
-                                onPlayFullSurah = {
-                                    if (isSurahPlaying) {
-                                        onTogglePlayPauseAudio()
-                                    } else {
-                                        onPlayFullSurah(surah, ayats)
-                                    }
-                                },
-                                onSaveOffline = { onSaveOffline(surah.nomor) }
-                            )
+                        item(key = "reader_opening", contentType = "opening") {
+                            ReaderOpening(surah = surah)
                         }
 
                         items(
                             items = ayats,
-                            key = { "${it.surahNomor}_${it.nomorAyat}" }
+                            key = { "${it.surahNomor}_${it.nomorAyat}" },
+                            contentType = { "ayat" }
                         ) { ayat ->
                             val isBookmarked = (surah.nomor * 1000 + ayat.nomorAyat) in bookmarkedKeys
                             val isLastReadVerse = lastRead.updatedAt > 0 && lastRead.surahNomor == surah.nomor &&
@@ -494,6 +539,9 @@ fun SurahDetailScreen(
                 }
             }
         }
+
+
+    }
     }
 }
 
@@ -747,134 +795,32 @@ private fun StickyAyatNavigationAndAutoScrollBar(
 }
 
 @Composable
-private fun SurahHeaderBanner(
-    surah: SurahEntity,
-    isPlayingSurah: Boolean,
-    isOfflineSaving: Boolean,
-    onPlayFullSurah: () -> Unit,
-    onSaveOffline: () -> Unit
-) {
-    val gradient = Brush.linearGradient(
-        listOf(
-            Color(0xFF0284C7),
-            Color(0xFF0369A1),
-            Color(0xFF0F172A)
-        )
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("surah_header_banner"),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(gradient)
-                .padding(22.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = surah.namaArab,
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontFamily = AmiriQuranFontFamily,
-                    fontSize = 34.sp,
-                    lineHeight = 42.sp
-                ),
-                color = Color.White,
-                maxLines = 1,
-                softWrap = false,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = surah.namaLatin,
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                color = Color.White
-            )
-
-            Text(
-                text = "${surah.arti} • ${surah.tempatTurun} • ${surah.jumlahAyat} Ayat",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.85f)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
-            ) {
-                Button(
-                    onClick = onPlayFullSurah,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = Color(0xFF0369A1)
-                    ),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.testTag("play_full_surah_button")
-                ) {
-                    Icon(
-                        imageVector = if (isPlayingSurah) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isPlayingSurah) "Jeda Murottal" else "Putar Murottal")
-                }
-
-                OutlinedButton(
-                    onClick = onSaveOffline,
-                    enabled = !isOfflineSaving,
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.testTag("save_surah_offline_button")
-                ) {
-                    if (isOfflineSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (surah.isCachedOffline) Icons.Default.CheckCircle else Icons.Outlined.CloudDownload,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = if (surah.isCachedOffline) Color(0xFF5EEAD4) else Color.White
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        if (surah.isCachedOffline) "Tersimpan Offline" else "Simpan Offline"
-                    )
-                }
+private fun ReaderOpening(surah: SurahEntity) {
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth()) {
+            ReaderArtworkSlice(0.293f, 1f, Modifier.fillMaxWidth()
+                .aspectRatio(2f / 0.707f), blendIntoPaper = true)
+            Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 36.dp, vertical = 17.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(surah.namaArab,
+                    style = MaterialTheme.typography.headlineLarge.copy(fontFamily = AmiriQuranFontFamily,
+                        fontSize = 32.sp, lineHeight = 44.sp, textDirection = TextDirection.Rtl),
+                    color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+                Text(surah.namaLatin, style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(3.dp))
+                Text("Surah ke-${surah.nomor} · ${surah.jumlahAyat} ayat",
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Serif),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }
-
-            // Show Bismillah for all Surahs except Surah 1 (already verse 1) and Surah 9 (At-Taubah)
-            if (surah.nomor != 1 && surah.nomor != 9) {
-                Spacer(modifier = Modifier.height(18.dp))
-                HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = "بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحِيْمِ",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontFamily = AmiriQuranFontFamily,
-                        fontSize = 24.sp,
-                        lineHeight = 36.sp
-                    ),
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+        }
+        if (surah.nomor != 1 && surah.nomor != 9) {
+            // Reuse the existing verified opening invocation from the original reader.
+            Text(text = "بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحِيْمِ",
+                style = MaterialTheme.typography.headlineLarge.copy(fontFamily = AmiriQuranFontFamily, lineHeight = 48.sp),
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background).padding(vertical = 12.dp))
         }
     }
 }
@@ -895,234 +841,89 @@ private fun AyatItemCard(
     onCopyMessage: (String) -> Unit
 ) {
     val clipboard = LocalClipboardManager.current
-
-    val cardBgColor by animateColorAsState(
-        targetValue = when {
-            isAudioActive -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            isLastRead -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f)
-            else -> MaterialTheme.colorScheme.surface
-        },
-        label = "ayatCardBg"
-    )
-
-    val borderStroke = when {
-        isAudioActive -> BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
-        isLastRead -> BorderStroke(1.dp, MaterialTheme.colorScheme.secondary)
-        else -> BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("ayat_card_${ayat.nomorAyat}"),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = cardBgColor),
-        border = borderStroke,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
-        ) {
-            // Top bar of verse card: Verse badge, status chips, quick actions
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    VerseNumberBadge(
-                        number = ayat.nomorAyat,
-                        size = 38.dp,
-                        isHighlighted = isAudioActive || isLastRead
-                    )
-
-                    if (isLastRead) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "Terakhir Dibaca",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
+    var showActions by remember { mutableStateOf(false) }
+    val paper = MaterialTheme.colorScheme.background
+    val highlight = if (isAudioActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else paper
+    Column(Modifier.fillMaxWidth().background(highlight).padding(horizontal = 24.dp)
+        .testTag("ayat_card_${ayat.nomorAyat}")) {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                IconButton(onClick = { showActions = true }, modifier = Modifier.size(48.dp)
+                    .semantics { contentDescription = "Menu ayat ${ayat.nomorAyat}" }) {
+                    VerseNumberBadge(ayat.nomorAyat, size = 34.dp,
+                        isHighlighted = isAudioActive || isLastRead || isBookmarked)
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    // Play Audio Verse Button
-                    IconButton(
-                        onClick = onPlayAudio,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("play_ayat_button_${ayat.nomorAyat}")
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isAudioActive) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isAudioPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = "Putar Audio Ayat ${ayat.nomorAyat}",
-                                tint = if (isAudioActive) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    // Bookmark Verse Button
-                    IconButton(
-                        onClick = onToggleBookmark,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("bookmark_ayat_button_${ayat.nomorAyat}")
-                    ) {
-                        Icon(
-                            imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = "Simpan Bookmark Ayat ${ayat.nomorAyat}",
-                            tint = if (isBookmarked) MaterialTheme.colorScheme.tertiary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Mark as Last Read Button
-                    IconButton(
-                        onClick = onMarkLastRead,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("lastread_ayat_button_${ayat.nomorAyat}")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Flag,
-                            contentDescription = "Tandai selesai dibaca sampai ayat ${ayat.nomorAyat}",
-                            tint = if (isLastRead) MaterialTheme.colorScheme.secondary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Copy Verse Button
-                    IconButton(
-                        onClick = {
-                            val copied = buildString {
-                                appendLine("QS. ${surah.namaLatin} (${surah.nomor}): ${ayat.nomorAyat}")
-                                appendLine(ayat.teksArab)
-                                if (ayat.teksLatin.isNotBlank()) appendLine(ayat.teksLatin)
-                                append("\"${ayat.teksIndonesia}\"")
-                            }
-                            clipboard.setText(AnnotatedString(copied))
-                            onCopyMessage("QS. ${surah.namaLatin}: ${ayat.nomorAyat} disalin")
-                        },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("copy_ayat_button_${ayat.nomorAyat}")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.ContentCopy,
-                            contentDescription = "Salin Ayat ${ayat.nomorAyat}",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                DropdownMenu(showActions, onDismissRequest = { showActions = false }) {
+                    DropdownMenuItem(text = { Text(if (isAudioPlaying) "Jeda ayat" else "Putar ayat") },
+                        onClick = { onPlayAudio(); showActions = false }, modifier = Modifier.testTag("play_ayat_button_${ayat.nomorAyat}"))
+                    DropdownMenuItem(text = { Text(if (isBookmarked) "Hapus penanda" else "Simpan penanda") },
+                        onClick = { onToggleBookmark(); showActions = false }, modifier = Modifier.testTag("bookmark_ayat_button_${ayat.nomorAyat}"))
+                    DropdownMenuItem(text = { Text("Tandai selesai dibaca") }, onClick = { onMarkLastRead(); showActions = false },
+                        modifier = Modifier.testTag("lastread_ayat_button_${ayat.nomorAyat}"))
+                    DropdownMenuItem(text = { Text("Salin ayat") }, onClick = {
+                        clipboard.setText(AnnotatedString("QS. ${surah.namaLatin} (${surah.nomor}): ${ayat.nomorAyat}\n${ayat.teksArab}\n${ayat.teksIndonesia}"))
+                        onCopyMessage("Ayat disalin"); showActions = false
+                    }, modifier = Modifier.testTag("copy_ayat_button_${ayat.nomorAyat}"))
+                    DropdownMenuItem(text = { Text("Baca tafsir") }, onClick = { onOpenTafsir(); showActions = false },
+                        modifier = Modifier.testTag("tafsir_ayat_button_${ayat.nomorAyat}"))
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Arabic Uthmani Text (Rata Kanan)
-            Text(
-                text = ayat.teksArab,
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontFamily = AmiriQuranFontFamily,
+            Spacer(Modifier.width(12.dp))
+            Text(ayat.teksArab,
+                style = MaterialTheme.typography.displayLarge.copy(fontFamily = AmiriQuranFontFamily,
                     fontSize = readerSettings.arabicFontSizeSp.sp,
-                    lineHeight = (readerSettings.arabicFontSizeSp * 2.0f).sp,
-                    textDirection = TextDirection.Rtl
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Right,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            )
-
-            // Transliteration Latin (Rata Kiri)
-            if (readerSettings.showLatin && ayat.teksLatin.isNotBlank()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = ayat.teksLatin,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontStyle = FontStyle.Italic,
-                        fontSize = (readerSettings.translationFontSizeSp - 1).coerceAtLeast(12).sp,
-                        lineHeight = ((readerSettings.translationFontSizeSp - 1) * 1.55f).sp,
-                        textDirection = TextDirection.Ltr
-                    ),
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Left,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // Indonesian Translation (Rata Kiri)
-            if (readerSettings.showTranslation && ayat.teksIndonesia.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = ayat.teksIndonesia,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = readerSettings.translationFontSizeSp.sp,
-                        lineHeight = (readerSettings.translationFontSizeSp * 1.6f).sp,
-                        textDirection = TextDirection.Ltr
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Left,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Bottom action bar: Open Kemenag RI Tafsir Sheet
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                    lineHeight = (readerSettings.arabicFontSizeSp * 1.9f).sp, textDirection = TextDirection.Rtl),
+                color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Right,
+                modifier = Modifier.weight(1f).padding(vertical = 4.dp))
+        }
+        if (readerSettings.showLatin && ayat.teksLatin.isNotBlank()) {
+            Text(ayat.teksLatin, style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 12.dp))
+        }
+        if (readerSettings.showTranslation && ayat.teksIndonesia.isNotBlank()) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shape = RoundedCornerShape(10.dp)
             ) {
-                FilledTonalButton(
-                    onClick = onOpenTafsir,
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
-                    modifier = Modifier.testTag("tafsir_ayat_button_${ayat.nomorAyat}")
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Baca Tafsir",
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
+                Text(ayat.teksIndonesia,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Serif,
+                        fontSize = readerSettings.translationFontSizeSp.sp,
+                        lineHeight = (readerSettings.translationFontSizeSp * 1.5f).sp, textDirection = TextDirection.Ltr),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp))
             }
+        }
+        Row(Modifier.fillMaxWidth().padding(vertical = 23.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+            Text("۞", fontFamily = AmiriQuranFontFamily, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+        }
+    }
+}
+
+@Composable
+private fun ReaderArtworkSlice(start: Float, end: Float, modifier: Modifier = Modifier, blendIntoPaper: Boolean = false) {
+    val artwork by rememberArtwork(R.drawable.reader_top)
+    val paper = MaterialTheme.colorScheme.background
+    val useDarkPaper = blendIntoPaper && paper.luminance() < 0.5f
+    Canvas(modifier) {
+        val bitmap = artwork
+        if (bitmap == null) {
+            if (blendIntoPaper) drawRect(paper)
+            return@Canvas
+        }
+        val top = (bitmap.height * start).roundToInt()
+        val bottom = (bitmap.height * end).roundToInt().coerceAtMost(bitmap.height)
+        if (useDarkPaper) drawRect(paper)
+        drawImage(bitmap, srcOffset = IntOffset(0, top),
+            srcSize = IntSize(bitmap.width, (bottom - top).coerceAtLeast(1)),
+            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+            colorFilter = if (useDarkPaper) TransparentArtworkPaper else null,
+            filterQuality = FilterQuality.High)
+        if (blendIntoPaper) {
+            drawRect(Brush.verticalGradient(listOf(Color.Transparent, paper),
+                startY = size.height * 0.88f, endY = size.height))
         }
     }
 }

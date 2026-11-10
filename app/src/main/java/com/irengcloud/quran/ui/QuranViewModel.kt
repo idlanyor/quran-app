@@ -5,12 +5,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.irengcloud.quran.data.QuranRepository
+import com.irengcloud.quran.data.MurottalStorage
+import com.irengcloud.quran.data.SavedMurottal
+import com.irengcloud.quran.data.alafasyVerseUrl
 import com.irengcloud.quran.data.local.AyatEntity
 import com.irengcloud.quran.data.local.BookmarkEntity
 import com.irengcloud.quran.data.local.KhatamLogEntity
 import com.irengcloud.quran.data.local.KhatamTargetMode
 import com.irengcloud.quran.data.local.LastReadState
 import com.irengcloud.quran.data.local.QuranDatabase
+import com.irengcloud.quran.data.local.QuranLatinSource
 import com.irengcloud.quran.data.local.ReadingProgressRepository
 import com.irengcloud.quran.data.local.ReaderSettingsState
 import com.irengcloud.quran.data.local.SearchAyatItem
@@ -27,8 +31,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 enum class SurahFilterCategory(val label: String) {
     ALL("Semua"),
@@ -69,18 +77,31 @@ data class SearchUiState(
     val totalItems: Int = 0,
     val hasMore: Boolean = false,
     val errorMessage: String? = null,
-    val hasSearchedOnce: Boolean = false
+    val hasSearchedOnce: Boolean = false,
+    val submittedQuery: String = ""
+)
+
+data class MurottalDownloadsState(
+    val saved: Map<Int, SavedMurottal> = emptyMap(),
+    val downloadingSurah: Int? = null,
+    val savedVerses: Int = 0,
+    val totalVerses: Int = 0,
+    val removingSurah: Int? = null
 )
 
 class QuranViewModel(
     private val repository: QuranRepository,
-    private val prefsRepository: UserPreferencesRepository
+    private val prefsRepository: UserPreferencesRepository,
+    private val murottalStorage: MurottalStorage
 ) : ViewModel() {
 
     private val readingProgress = ReadingProgressRepository(prefsRepository.store)
 
-    val audioController = MurottalAudioController()
+    val audioController = MurottalAudioController(murottalStorage::localAudioPath)
     val audioState: StateFlow<AudioPlaybackState> = audioController.state
+    private val _murottalDownloads = MutableStateFlow(MurottalDownloadsState())
+    val murottalDownloads: StateFlow<MurottalDownloadsState> = _murottalDownloads.asStateFlow()
+    private var murottalFileJob: Job? = null
 
     private val _surahSearchQuery = MutableStateFlow("")
     val surahSearchQuery: StateFlow<String> = _surahSearchQuery.asStateFlow()
@@ -142,8 +163,13 @@ class QuranViewModel(
 
     private val _searchState = MutableStateFlow(SearchUiState())
     val searchState: StateFlow<SearchUiState> = _searchState.asStateFlow()
+    private var searchJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            val saved = murottalStorage.savedSurahs()
+            _murottalDownloads.update { it.copy(saved = saved) }
+        }
         viewModelScope.launch {
             readingProgress.importLegacyHistory(repository.recentKhatamLogsFlow.first())
         }
@@ -266,10 +292,17 @@ class QuranViewModel(
         _searchState.update { it.copy(query = newQuery) }
     }
 
+    fun clearSearch() {
+        searchJob?.cancel()
+        _searchState.update {
+            SearchUiState(query = "", pageSize = it.pageSize, hasSearchedOnce = true)
+        }
+    }
+
     fun updateSearchPageSize(newSize: Int) {
         val validSize = newSize.coerceIn(5, 50)
         _searchState.update { it.copy(pageSize = validSize) }
-        val currentQuery = _searchState.value.query.trim()
+        val currentQuery = _searchState.value.submittedQuery
         if (currentQuery.isNotEmpty()) {
             executeSearch(query = currentQuery, page = 1, size = validSize)
         }
@@ -286,19 +319,25 @@ class QuranViewModel(
             return
         }
 
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             val isFirstPage = page <= 1
             _searchState.update {
-                it.copy(
-                    query = cleanQuery,
-                    isLoading = isFirstPage,
-                    isLoadingMore = !isFirstPage,
-                    errorMessage = null,
-                    hasSearchedOnce = true
-                )
+                if (isFirstPage) {
+                    SearchUiState(
+                        query = cleanQuery,
+                        submittedQuery = cleanQuery,
+                        pageSize = size,
+                        isLoading = true,
+                        hasSearchedOnce = true
+                    )
+                } else {
+                    it.copy(isLoadingMore = true, errorMessage = null)
+                }
             }
 
             val result = repository.searchAyat(query = cleanQuery, page = page, size = size)
+            ensureActive()
             result.fold(
                 onSuccess = { paginated ->
                     _searchState.update { prev ->
@@ -336,7 +375,7 @@ class QuranViewModel(
         val current = _searchState.value
         if (current.isLoading || current.isLoadingMore || !current.hasMore) return
         executeSearch(
-            query = current.query,
+            query = current.submittedQuery,
             page = current.currentPage + 1,
             size = current.pageSize
         )
@@ -485,6 +524,59 @@ class QuranViewModel(
         )
     }
 
+    fun playMurottal(surah: SurahEntity, ayats: List<AyatEntity>, startVerse: Int) {
+        val queue = ayats.map { ayat ->
+            ayat.copy(audioUrl = alafasyVerseUrl(surah.nomor, ayat.nomorAyat))
+        }
+        audioController.playVerseFromSurah(surah.nomor, surah.namaLatin, queue, startVerse)
+    }
+
+    fun downloadMurottal(surah: SurahEntity) {
+        if (murottalFileJob?.isCompleted == false || surah.jumlahAyat <= 0) return
+        murottalFileJob = viewModelScope.launch {
+            _murottalDownloads.update {
+                it.copy(downloadingSurah = surah.nomor, savedVerses = 0, totalVerses = surah.jumlahAyat)
+            }
+            try {
+                murottalStorage.saveSurah(surah.nomor, surah.jumlahAyat) { count ->
+                    _murottalDownloads.update { it.copy(savedVerses = count) }
+                }
+                showSnackbar("Murottal ${surah.namaLatin} tersimpan")
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                showSnackbar("Unduhan belum selesai. Coba unduh lagi.")
+            } finally {
+                withContext(NonCancellable) {
+                    val saved = murottalStorage.savedSurahs()
+                    _murottalDownloads.update {
+                        it.copy(saved = saved, downloadingSurah = null, savedVerses = 0, totalVerses = 0)
+                    }
+                }
+            }
+        }
+    }
+
+    fun cancelMurottalDownload() {
+        if (_murottalDownloads.value.downloadingSurah != null) murottalFileJob?.cancel()
+    }
+
+    fun removeMurottal(surah: Int) {
+        if (murottalFileJob?.isCompleted == false) return
+        murottalFileJob = viewModelScope.launch {
+            _murottalDownloads.update { it.copy(removingSurah = surah) }
+            try {
+                val removed = murottalStorage.removeSurah(surah)
+                if (!removed) showSnackbar("Sebagian file audio tidak dapat dihapus")
+                val playing = audioState.value
+                if (playing.surahNomor == surah && playing.usesLocalAudio) audioController.stop()
+            } finally {
+                val saved = murottalStorage.savedSurahs()
+                _murottalDownloads.update { it.copy(saved = saved, removingSurah = null) }
+            }
+        }
+    }
+
     fun showSnackbar(message: String) {
         _snackbarMessage.value = message
     }
@@ -505,9 +597,11 @@ class QuranViewModel(
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val db = QuranDatabase.getInstance(context)
                     val api = QuranApiService.create()
-                    val repo = QuranRepository(db.quranDao(), api)
+                    val latin = QuranLatinSource(context.assets)
+                    val repo = QuranRepository(db.quranDao(), api, latin::forSurah)
                     val prefs = UserPreferencesRepository(context.applicationContext)
-                    return QuranViewModel(repo, prefs) as T
+                    val murottal = MurottalStorage(File(context.filesDir, "murottal"))
+                    return QuranViewModel(repo, prefs, murottal) as T
                 }
             }
     }

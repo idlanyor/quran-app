@@ -17,7 +17,8 @@ import kotlinx.coroutines.withContext
 
 class QuranRepository(
     private val dao: QuranDao,
-    private val api: QuranApiService
+    private val api: QuranApiService,
+    private val offlineLatinForSurah: (Int) -> List<String> = { emptyList() }
 ) {
 
     val allSurahsFlow: Flow<List<SurahEntity>> = dao.getAllSurahsFlow()
@@ -86,7 +87,7 @@ class QuranRepository(
         forceRefresh: Boolean = false
     ): Result<Pair<SurahEntity?, List<AyatEntity>>> = withContext(Dispatchers.IO) {
         val cachedSurah = dao.getSurahByNomor(nomor)
-        val cachedAyats = dao.getAyatsBySurahOnce(nomor)
+        val cachedAyats = dao.getAyatsBySurahOnce(nomor).withOfflineLatin(nomor)
 
         if (!forceRefresh && cachedAyats.isNotEmpty() && cachedSurah != null && cachedAyats.size >= cachedSurah.jumlahAyat) {
             return@withContext Result.success(cachedSurah to cachedAyats)
@@ -96,7 +97,8 @@ class QuranRepository(
             val response = api.getSuratDetail(nomor)
             if (response.isSuccessful) {
                 val raw = response.body()?.string().orEmpty()
-                val (parsedSurah, parsedAyats) = QuranJsonParser.parseSurahDetail(raw, nomor)
+                val (parsedSurah, remoteAyats) = QuranJsonParser.parseSurahDetail(raw, nomor)
+                val parsedAyats = remoteAyats.withOfflineLatin(nomor)
                 if (parsedAyats.isNotEmpty()) {
                     dao.insertAyats(parsedAyats)
                     val updatedSurah = (parsedSurah ?: cachedSurah)?.copy(
@@ -141,9 +143,10 @@ class QuranRepository(
                         val local = existingAyats[remote.nomorAyat]
                         remote.copy(
                             teksArab = local?.teksArab?.ifBlank { remote.teksArab } ?: remote.teksArab,
+                            teksLatin = remote.teksLatin.ifBlank { local?.teksLatin.orEmpty() },
                             teksIndonesia = local?.teksIndonesia?.ifBlank { remote.teksIndonesia } ?: remote.teksIndonesia
                         )
-                    }
+                    }.withOfflineLatin(nomor)
                     dao.insertAyats(mergedAyats)
                     parsedSurah?.let { s ->
                         dao.getSurahByNomor(nomor)?.let { localSurah ->
@@ -156,6 +159,18 @@ class QuranRepository(
             Result.success(dao.getAyatsBySurahOnce(nomor))
         } catch (e: Exception) {
             Result.success(dao.getAyatsBySurahOnce(nomor))
+        }
+    }
+
+    private fun List<AyatEntity>.withOfflineLatin(surah: Int): List<AyatEntity> {
+        if (none { it.teksLatin.isBlank() }) return this
+        val latin = offlineLatinForSurah(surah)
+        if (latin.isEmpty()) return this
+        return map { ayat ->
+            if (ayat.teksLatin.isNotBlank()) ayat else {
+                val text = latin.getOrNull(ayat.nomorAyat - 1).orEmpty()
+                if (text.isBlank()) ayat else ayat.copy(teksLatin = text)
+            }
         }
     }
 

@@ -23,27 +23,27 @@ val AmiriQuranFontFamily = FontFamily(
 
 val Typography = Typography(
     displayLarge = TextStyle(
-        fontFamily = PlusJakartaSansFontFamily,
+        fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.Bold,
         fontSize = 34.sp,
         lineHeight = 42.sp,
         letterSpacing = (-0.5).sp
     ),
     headlineLarge = TextStyle(
-        fontFamily = PlusJakartaSansFontFamily,
+        fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.Bold,
         fontSize = 26.sp,
         lineHeight = 34.sp,
         letterSpacing = (-0.25).sp
     ),
     headlineMedium = TextStyle(
-        fontFamily = PlusJakartaSansFontFamily,
+        fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp
     ),
     titleLarge = TextStyle(
-        fontFamily = PlusJakartaSansFontFamily,
+        fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.Bold,
         fontSize = 18.sp,
         lineHeight = 24.sp

@@ -3,77 +3,49 @@ package com.irengcloud.quran.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.EventAvailable
-import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.TrackChanges
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.irengcloud.quran.data.local.BookmarkEntity
-import com.irengcloud.quran.data.local.KhatamLogEntity
-import com.irengcloud.quran.data.local.KhatamTargetMode
-import com.irengcloud.quran.data.local.LastReadState
-import com.irengcloud.quran.data.local.ReaderSettingsState
+import com.irengcloud.quran.R
+import com.irengcloud.quran.data.local.*
+import com.irengcloud.quran.ui.components.AppArtwork
 import com.irengcloud.quran.ui.components.KhatamTrackerComponent
 import com.irengcloud.quran.ui.components.TOTAL_QURAN_AYATS
 import com.irengcloud.quran.ui.components.TOTAL_QURAN_SURAHS
 import com.irengcloud.quran.ui.components.rememberTodayKey
-import com.irengcloud.quran.ui.components.VerseNumberBadge
 import com.irengcloud.quran.ui.theme.AmiriQuranFontFamily
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
-import kotlin.math.ceil
 
 @Composable
 fun BookmarkKhatamScreen(
@@ -89,519 +61,148 @@ fun BookmarkKhatamScreen(
     onLogCustomAyats: (Int) -> Unit,
     onLogCustomSurahs: (Int) -> Unit,
     onResetKhatam: () -> Unit,
+    selectedSection: Int = 1,
+    onSectionChange: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var selectedSection by remember { mutableIntStateOf(0) } // 0 = Khatam & Semua, 1 = Hanya Bookmark
     val todayKey = rememberTodayKey()
-    val todayLog = khatamLogs.find { it.dateKey == todayKey }
-    val todayReadAyats = todayLog?.ayatCountRead ?: 0
-    val todayReadSurahs = todayLog?.surahCountRead ?: 0
+    val todayLog = remember(khatamLogs, todayKey) { khatamLogs.find { it.dateKey == todayKey } }
+    var pendingRemoval by remember { mutableStateOf<BookmarkEntity?>(null) }
+    var preview by remember { mutableStateOf<BookmarkEntity?>(null) }
+    val locale = remember { Locale.forLanguageTag("id-ID") }
+    val shortDate = remember(locale) { SimpleDateFormat("dd MMM", locale) }
+    val dayKey = remember(locale) { SimpleDateFormat("yyyy-MM-dd", locale) }
+    val yesterday = remember(todayKey) {
+        Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }.time.let(dayKey::format)
+    }
+    pendingRemoval?.let { bookmark ->
+        AlertDialog(onDismissRequest = { pendingRemoval = null },
+            title = { Text("Hapus penanda?") },
+            text = { Text("Penanda ${bookmark.surahNamaLatin} ayat ${bookmark.nomorAyat} akan dihapus.") },
+            confirmButton = { TextButton(onClick = {
+                onRemoveBookmark(bookmark.surahNomor, bookmark.nomorAyat); pendingRemoval = null
+            }) { Text("Hapus") } },
+            dismissButton = { TextButton(onClick = { pendingRemoval = null }) { Text("Batal") } })
+    }
+    preview?.let { bookmark ->
+        AlertDialog(onDismissRequest = { preview = null },
+            title = { Text("${bookmark.surahNamaLatin} · Ayat ${bookmark.nomorAyat}") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(bookmark.teksArab, fontFamily = AmiriQuranFontFamily,
+                        fontSize = readerSettings.arabicFontSizeSp.sp,
+                        lineHeight = (readerSettings.arabicFontSizeSp * 1.8f).sp,
+                        textAlign = TextAlign.Right, modifier = Modifier.fillMaxWidth())
+                    Text(bookmark.teksIndonesia, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Serif))
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                preview = null; onOpenSurahAtAyat(bookmark.surahNomor, bookmark.nomorAyat)
+            }) { Text("Buka surah") } },
+            dismissButton = { TextButton(onClick = { preview = null }) { Text("Tutup") } })
+    }
 
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .widthIn(max = 840.dp)
-                .testTag("bookmark_khatam_lazy_column"),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = 12.dp,
-                bottom = 120.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Header: Title, Description, and Filter Chips
-            item(key = "header") {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "Khatam & Bookmark",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Pantau capaian target tilawah harian Anda menuju Khatam 30 Juz dan kelola ayat yang tersimpan.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = selectedSection == 0,
-                            onClick = { selectedSection = 0 },
-                            label = {
-                                Text(
-                                    text = "Target Khatam",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.TrackChanges,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = if (selectedSection == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ),
-                            modifier = Modifier.testTag("section_chip_khatam")
-                        )
-
-                        FilterChip(
-                            selected = selectedSection == 1,
-                            onClick = { selectedSection = 1 },
-                            label = {
-                                Text(
-                                    text = "Bookmark Ayat (${bookmarks.size})",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Bookmark,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = if (selectedSection == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ),
-                            modifier = Modifier.testTag("section_chip_bookmarks")
-                        )
+    Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(modifier = Modifier.fillMaxSize().widthIn(max = 840.dp).testTag("bookmark_khatam_lazy_column"),
+            contentPadding = PaddingValues(bottom = 110.dp)) {
+            item(key = "header", contentType = "header") {
+                Box(Modifier.fillMaxWidth().height(148.dp).background(Color(0xFF252439))) {
+                    AppArtwork(R.drawable.bookmarks_header, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+                    Column(Modifier.align(Alignment.Center).padding(bottom = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                        Icon(Icons.AutoMirrored.Outlined.MenuBook, null, tint = Color(0xFFE0B48A), modifier = Modifier.size(30.dp))
+                        Text("Penanda & Khatam", style = MaterialTheme.typography.headlineMedium,
+                            color = Color(0xFFFFF1E3))
                     }
                 }
             }
-
-            // ==================== SECTION 0: KHATAM TRACKER & OVERVIEW ====================
+            item(key = "sections", contentType = "sections") {
+                Box(Modifier.fillMaxWidth().background(Color(0xFF252439))) {
+                    Surface(shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                        color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth()) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shadowElevation = 2.dp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                            Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                BookmarkSectionTab("Penanda", selectedSection == 1, true, Modifier.weight(1f)) { onSectionChange(1) }
+                                BookmarkSectionTab("Khatam", selectedSection == 0, false, Modifier.weight(1f)) { onSectionChange(0) }
+                            }
+                        }
+                    }
+                }
+            }
+            item(key = "progress", contentType = "progress") {
+                KhatamSummaryCard(readerSettings, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) { onSectionChange(0) }
+            }
             if (selectedSection == 0) {
-                // Hero Card: Ocean Blue Gradient Banner matching HomeScreen, PrayerScreen, & SettingsScreen
-                item(key = "khatam_hero") {
-                    KhatamHeroCard(
-                        readerSettings = readerSettings,
-                        todayReadAyats = todayReadAyats,
-                        todayReadSurahs = todayReadSurahs,
-                        lastRead = lastRead,
-                        onContinueReading = {
-                            onOpenSurahAtAyat(lastRead.surahNomor, lastRead.ayatNomor)
-                        }
-                    )
+                item(key = "khatam_tracker", contentType = "tracker") {
+                    KhatamTrackerComponent(readerSettings, todayLog?.ayatCountRead ?: 0,
+                        todayLog?.surahCountRead ?: 0, lastRead, onTargetModeChange,
+                        onUpdateDailyTargetAyat, onUpdateDailyTargetSurah, onLogCustomAyats,
+                        onLogCustomSurahs, onResetKhatam,
+                        onContinueReading = { onOpenSurahAtAyat(lastRead.surahNomor, lastRead.ayatNomor) },
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 }
-
-                // Dedicated Khatam Tracker Component (Verses & Chapters daily target + progress indicators)
-                item(key = "khatam_tracker_card") {
-                    KhatamTrackerComponent(
-                        readerSettings = readerSettings,
-                        todayReadAyats = todayReadAyats,
-                        todayReadSurahs = todayReadSurahs,
-                        lastRead = lastRead,
-                        onTargetModeChange = onTargetModeChange,
-                        onUpdateDailyTargetAyat = onUpdateDailyTargetAyat,
-                        onUpdateDailyTargetSurah = onUpdateDailyTargetSurah,
-                        onLogCustomAyats = onLogCustomAyats,
-                        onLogCustomSurahs = onLogCustomSurahs,
-                        onResetKhatam = onResetKhatam,
-                        onContinueReading = {
-                            onOpenSurahAtAyat(lastRead.surahNomor, lastRead.ayatNomor)
-                        }
-                    )
-                }
-
-                // Recent Daily Reading History
                 if (khatamLogs.isNotEmpty()) {
-                    item(key = "khatam_history_card") {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(22.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(MaterialTheme.colorScheme.primaryContainer),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.History,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    Column {
-                                        Text(
-                                            text = "Riwayat Tilawah Terakhir",
-                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Pencatatan harian membaca Al-Qur'an",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                                khatamLogs.take(5).forEach { log ->
-                                    val isChapterMode = readerSettings.khatamTargetMode == KhatamTargetMode.CHAPTERS
-                                    val metTarget = if (isChapterMode) {
-                                        log.surahCountRead >= readerSettings.dailyKhatamTargetSurah
-                                    } else {
-                                        log.ayatCountRead >= readerSettings.dailyKhatamTargetAyat
-                                    }
-                                    Surface(
-                                        color = if (metTarget) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            if (metTarget) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.CheckCircle,
-                                                    contentDescription = null,
-                                                    tint = if (metTarget) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Text(
-                                                    text = if (log.dateKey == todayKey) "Hari Ini (${log.dateKey})" else log.dateKey,
-                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                            }
-
-                                            Surface(
-                                                color = if (metTarget) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                                shape = RoundedCornerShape(8.dp)
-                                            ) {
-                                                val summaryText = if (log.surahCountRead > 0) {
-                                                    "${log.surahCountRead} Surah • ${log.ayatCountRead} Ayat"
-                                                } else {
-                                                    "${log.ayatCountRead} Ayat"
-                                                }
-                                                Text(
-                                                    text = summaryText,
-                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                    color = if (metTarget) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                                )
-                                            }
-                                        }
+                    item(key = "history", contentType = "history") {
+                        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text("Riwayat Tilawah", style = MaterialTheme.typography.titleLarge)
+                                khatamLogs.take(7).forEach { log ->
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(if (log.dateKey == todayKey) "Hari ini" else log.dateKey,
+                                            style = MaterialTheme.typography.bodyMedium)
+                                        Text("${log.surahCountRead} surah · ${log.ayatCountRead} ayat",
+                                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
-                        }
-                    }
-                }
-            }
-
-            // ==================== SECTION 1: BOOKMARKS LIST ====================
-            item(key = "bookmarks_section_header") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Bookmark,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Ayat Tersimpan",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "${bookmarks.size} Ayat",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            if (bookmarks.isEmpty()) {
-                item(key = "empty_bookmarks") {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(22.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(36.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(54.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.BookmarkBorder,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                            Text(
-                                text = "Belum Ada Ayat di-Bookmark",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Ketuk ikon bookmark pada ayat mana pun saat membaca surah untuk menandai dan menyimpannya di sini.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
                         }
                     }
                 }
             } else {
-                items(
-                    items = bookmarks,
-                    key = { "${it.surahNomor}_${it.nomorAyat}" }
-                ) { bookmark ->
-                    BookmarkItemCard(
-                        bookmark = bookmark,
-                        readerSettings = readerSettings,
-                        onOpen = {
-                            onOpenSurahAtAyat(bookmark.surahNomor, bookmark.nomorAyat)
-                        },
-                        onDelete = {
-                            onRemoveBookmark(bookmark.surahNomor, bookmark.nomorAyat)
+                item(key = "bookmarks_heading", contentType = "heading") {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 17.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Penanda (Bookmark)", style = MaterialTheme.typography.titleLarge)
+                        Text("${bookmarks.size} ayat", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                if (bookmarks.isEmpty()) {
+                    item(key = "empty", contentType = "empty") {
+                        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier.padding(horizontal = 20.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Icon(Icons.Outlined.BookmarkBorder, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(34.dp))
+                                Text("Belum ada penanda", style = MaterialTheme.typography.titleLarge)
+                                Text("Simpan ayat saat membaca surah. Semua penandamu akan muncul di sini.",
+                                    style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                TextButton(onClick = { onOpenSurahAtAyat(lastRead.surahNomor, lastRead.ayatNomor) }) {
+                                    Text("Lanjut membaca")
+                                }
+                            }
                         }
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Modern Hero Card matching the visual language of HomeScreen, PrayerScreen, and SettingsScreen.
- */
-@Composable
-private fun KhatamHeroCard(
-    readerSettings: ReaderSettingsState,
-    todayReadAyats: Int,
-    todayReadSurahs: Int,
-    lastRead: LastReadState,
-    onContinueReading: () -> Unit
-) {
-    val gradientColors = listOf(
-        Color(0xFF0284C7),
-        Color(0xFF0369A1),
-        Color(0xFF0F172A)
-    )
-
-    val isChapterMode = readerSettings.khatamTargetMode == KhatamTargetMode.CHAPTERS
-    val totalCompletedUnits = if (isChapterMode) {
-        readerSettings.totalKhatamSurahCompleted
-    } else {
-        readerSettings.totalKhatamAyatCompleted
-    }
-    val totalGoalUnits = if (isChapterMode) TOTAL_QURAN_SURAHS else TOTAL_QURAN_AYATS
-    val unitLabel = readerSettings.khatamTargetMode.unitLabel
-    val rawOverallProgress = (totalCompletedUnits.toFloat() / totalGoalUnits).coerceIn(0f, 1f)
-    val percentageText = String.format(Locale.US, "%.1f%%", rawOverallProgress * 100f)
-
-    val todayCompletedUnits = if (isChapterMode) todayReadSurahs else todayReadAyats
-    val dailyTargetUnits = if (isChapterMode) {
-        readerSettings.dailyKhatamTargetSurah.coerceAtLeast(1)
-    } else {
-        readerSettings.dailyKhatamTargetAyat.coerceAtLeast(1)
-    }
-    val remainingUnits = (totalGoalUnits - totalCompletedUnits).coerceAtLeast(0)
-    val estimatedDaysLeft = if (dailyTargetUnits > 0) {
-        ceil(remainingUnits.toDouble() / dailyTargetUnits.toDouble()).toInt()
-    } else 0
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.linearGradient(gradientColors))
-                .drawBehind {
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.06f),
-                        radius = size.minDimension * 0.7f,
-                        center = Offset(size.width * 0.9f, size.height * 0.15f)
-                    )
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.05f),
-                        radius = size.minDimension * 0.45f,
-                        center = Offset(size.width * 0.82f, size.height * 0.88f)
-                    )
-                }
-                .padding(20.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                // Top row: Pill badge & Arabic Calligraphy
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.AutoStories,
-                            contentDescription = null,
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "TARGET & PROGRES KHATAM",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
-                            ),
-                            color = Color(0xFFE0F2FE)
-                        )
                     }
-
-                    Text(
-                        text = "خَتْمُ الْقُرْآنِ",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontFamily = AmiriQuranFontFamily,
-                            fontSize = 24.sp,
-                            lineHeight = 30.sp
-                        ),
-                        color = Color.White.copy(alpha = 0.95f)
-                    )
-                }
-
-                // Middle: Progress Highlight
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = "$percentageText Khatam Selesai",
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
-                        Text(
-                            text = "$totalCompletedUnits dari $totalGoalUnits $unitLabel tercapai • ~$estimatedDaysLeft hari lagi",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFE0F2FE)
-                        )
+                } else {
+                    items(bookmarks, key = { "${it.surahNomor}_${it.nomorAyat}" }, contentType = { "bookmark" }) { bookmark ->
+                        val label = remember(bookmark.timestamp, todayKey) {
+                            val date = Date(bookmark.timestamp)
+                            when (dayKey.format(date)) {
+                                todayKey -> "Hari ini"
+                                yesterday -> "Kemarin"
+                                else -> shortDate.format(date)
+                            }
+                        }
+                        BookmarkItemCard(bookmark, label,
+                            onOpen = { onOpenSurahAtAyat(bookmark.surahNomor, bookmark.nomorAyat) },
+                            onPreview = { preview = bookmark }, onDelete = { pendingRemoval = bookmark })
                     }
-                }
-
-                // Bottom summary pills & CTA
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        color = Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(
-                            text = "Target ${dailyTargetUnits} ${unitLabel.lowercase()}/hari",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    Surface(
-                        color = Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(
-                            text = "Hari ini: $todayCompletedUnits $unitLabel",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                // Quick Action
-                Button(
-                    onClick = onContinueReading,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = Color(0xFF0369A1)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Lanjut Baca QS. ${lastRead.surahNamaLatin}:${lastRead.ayatNomor}",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                    )
                 }
             }
         }
@@ -609,114 +210,89 @@ private fun KhatamHeroCard(
 }
 
 @Composable
-private fun BookmarkItemCard(
-    bookmark: BookmarkEntity,
-    readerSettings: ReaderSettingsState,
-    onOpen: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpen)
-            .testTag("bookmark_card_${bookmark.surahNomor}_${bookmark.nomorAyat}"),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    VerseNumberBadge(number = bookmark.nomorAyat, size = 36.dp, isHighlighted = true)
-                    Column {
-                        Text(
-                            text = "QS. ${bookmark.surahNamaLatin} (${bookmark.surahNomor}) : Ayat ${bookmark.nomorAyat}",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = bookmark.surahNamaArab,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+private fun BookmarkSectionTab(label: String, selected: Boolean, bookmark: Boolean,
+    modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val copper = Brush.verticalGradient(listOf(Color(0xFFBA805B), Color(0xFF8B5035)))
+    Row(modifier.height(48.dp).clip(RoundedCornerShape(10.dp))
+        .then(if (selected) Modifier.background(copper) else Modifier)
+        .clickable(onClick = onClick).testTag(if (bookmark) "section_chip_bookmarks" else "section_chip_khatam"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        val tint = if (selected) Color(0xFFFFF6ED) else MaterialTheme.colorScheme.onSurface
+        Icon(if (bookmark) Icons.Outlined.BookmarkBorder else Icons.Outlined.TrackChanges, null,
+            tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(9.dp))
+        Text(label, color = tint, style = MaterialTheme.typography.labelLarge)
+    }
+}
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .testTag("delete_bookmark_${bookmark.surahNomor}_${bookmark.nomorAyat}")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteOutline,
-                            contentDescription = "Hapus Bookmark",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
+@Composable
+private fun KhatamSummaryCard(settings: ReaderSettingsState, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val chapterMode = settings.khatamTargetMode == KhatamTargetMode.CHAPTERS
+    val completed = if (chapterMode) settings.totalKhatamSurahCompleted else settings.totalKhatamAyatCompleted
+    val total = if (chapterMode) TOTAL_QURAN_SURAHS else TOTAL_QURAN_AYATS
+    val unit = if (chapterMode) "surah" else "ayat"
+    val progress = (completed.toFloat() / total).coerceIn(0f, 1f)
+    val percent = "${(progress * 100).toInt()}%"
+    Surface(onClick = onClick, shape = RoundedCornerShape(18.dp), color = Color(0xFF252439),
+        modifier = modifier.fillMaxWidth().semantics { contentDescription = "Progres khatam $percent. $completed dari $total $unit." }
+            .testTag("khatam_summary_card")) {
+        Box(Modifier.fillMaxWidth().height(196.dp)) {
+            AppArtwork(R.drawable.khatam_arch, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("Progres Khatam", style = MaterialTheme.typography.headlineMedium, color = Color(0xFFFFF4E8))
+                Text("Target 1 kali khatam", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif),
+                    color = Color(0xFFF1DFCD))
+                Spacer(Modifier.height(7.dp))
+                Row(Modifier.fillMaxWidth(0.73f), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxSize(),
+                            color = Color(0xFFD7A47B), trackColor = Color(0xFF696A7B), strokeWidth = 7.dp, strokeCap = StrokeCap.Round)
+                        Text(percent, style = MaterialTheme.typography.headlineMedium, color = Color(0xFFFFF4E8))
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "Buka Ayat",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
+                    Text("$completed dari $total $unit\nsudah dibaca", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif),
+                        color = Color(0xFFFFF1E2))
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(2.dp))
-
-            // Arabic verse
-            Text(
-                text = bookmark.teksArab,
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontFamily = AmiriQuranFontFamily,
-                    fontSize = (readerSettings.arabicFontSizeSp - 2).coerceAtLeast(22).sp,
-                    lineHeight = ((readerSettings.arabicFontSizeSp - 2) * 1.95f).sp,
-                    textDirection = TextDirection.Rtl
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Right,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Indonesian translation
-            Text(
-                text = bookmark.teksIndonesia,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = readerSettings.translationFontSizeSp.sp,
-                    lineHeight = (readerSettings.translationFontSizeSp * 1.55f).sp,
-                    textDirection = TextDirection.Ltr
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Left,
-                modifier = Modifier.fillMaxWidth()
-            )
+@Composable
+private fun BookmarkItemCard(bookmark: BookmarkEntity, dateLabel: String,
+    onOpen: () -> Unit, onPreview: () -> Unit, onDelete: () -> Unit) {
+    var showMenu by remember { mutableStateOf(false) }
+    Surface(onClick = onOpen, shape = RoundedCornerShape(15.dp), color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)), shadowElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 5.dp)
+            .testTag("bookmark_card_${bookmark.surahNomor}_${bookmark.nomorAyat}")) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(start = 12.dp, end = 5.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                Icon(Icons.Filled.Bookmark, null, tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(10.dp).size(21.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(bookmark.surahNamaLatin, style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Surah ke-${bookmark.surahNomor} · Ayat ${bookmark.nomorAyat}",
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Serif),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(dateLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Box {
+                IconButton(onClick = { showMenu = true }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.MoreVert, "Menu penanda ${bookmark.surahNamaLatin} ayat ${bookmark.nomorAyat}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
+                }
+                DropdownMenu(showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(text = { Text("Buka ayat") }, onClick = { showMenu = false; onOpen() })
+                    DropdownMenuItem(text = { Text("Lihat rincian") }, onClick = { showMenu = false; onPreview() })
+                    DropdownMenuItem(text = { Text("Hapus penanda") }, onClick = { showMenu = false; onDelete() },
+                        modifier = Modifier.testTag("delete_bookmark_${bookmark.surahNomor}_${bookmark.nomorAyat}"))
+                }
+            }
         }
     }
 }

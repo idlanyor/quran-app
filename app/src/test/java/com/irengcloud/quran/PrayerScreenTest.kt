@@ -106,7 +106,7 @@ class PrayerScreenTest {
         composeTestRule.onNodeWithTag("filter_chip_today").assertIsDisplayed()
         composeTestRule.onNodeWithTag("filter_chip_qibla").assertIsDisplayed()
         composeTestRule.onNodeWithTag("filter_chip_month").assertExists()
-        composeTestRule.onNodeWithTag("detect_prayer_location").assertExists()
+        composeTestRule.onNodeWithTag("prayer_detect_location").assertExists()
 
         // Switch to "Arah Kiblat" section where qibla_card is displayed at the top
         composeTestRule.onNodeWithTag("filter_chip_qibla").performClick()
@@ -114,6 +114,6 @@ class PrayerScreenTest {
 
         // Switch back to "Hari Ini & Kiblat" section
         composeTestRule.onNodeWithTag("filter_chip_today").performClick()
-        composeTestRule.onNodeWithTag("detect_prayer_location").assertExists()
+        composeTestRule.onNodeWithTag("prayer_detect_location").assertExists()
     }
 }

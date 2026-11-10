@@ -11,6 +11,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.LocationCity
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,6 +52,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
+import com.irengcloud.quran.R
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -496,5 +505,157 @@ fun QiblaCompassCard(
                 }
             }
         }
+    }
+}
+
+/** Compact live compass matching the cream-and-copper prayer overview. */
+@Composable
+fun QiblaMockupCard(
+    location: QiblaLocation?,
+    locating: Boolean,
+    onRequestLocation: () -> Unit,
+    expanded: Boolean = false,
+    regionBased: Boolean = false,
+    resolvingRegion: Boolean = false,
+    locationMessage: String? = null,
+    modifier: Modifier = Modifier
+) {
+    Card(modifier.fillMaxWidth().testTag("qibla_card"), shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))) {
+        Box {
+            if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
+                AppArtwork(R.drawable.qibla_lace, Modifier.matchParentSize(), contentScale = ContentScale.FillBounds)
+            }
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (expanded) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        KaabaMark(Modifier.size(28.dp)); Spacer(Modifier.width(10.dp))
+                        Text("Arah Kiblat", style = MaterialTheme.typography.headlineMedium)
+                    }
+                    Text("Menuju Ka’bah, Masjidil Haram", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (location?.isManualRegion == true) {
+                        Text("Perkiraan pusat ${location.regionCity}", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    LiveMockupDial(location, 240.dp, showGuidance = true, modifier = Modifier.align(Alignment.CenterHorizontally))
+                } else {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                KaabaMark(Modifier.size(25.dp)); Spacer(Modifier.width(9.dp))
+                                Text("Arah Kiblat", style = MaterialTheme.typography.titleLarge)
+                            }
+                            Text("Menuju Ka’bah,\nMasjidil Haram", style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif))
+                            if (location != null) {
+                                val bearing = remember(location) { qiblaBearing(location.latitude, location.longitude) }
+                                bearing?.let { Text(String.format(Locale.forLanguageTag("id-ID"), "%.1f° dari utara", it),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                if (location.isManualRegion) Text("Perkiraan pusat ${location.regionCity}",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        LiveMockupDial(location, 152.dp, showGuidance = false)
+                    }
+                }
+                locationMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                TextButton(enabled = !locating, onClick = onRequestLocation,
+                    modifier = Modifier.align(if (expanded) Alignment.CenterHorizontally else Alignment.Start)) {
+                    if (locating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp)
+                    else Icon(if (regionBased) Icons.Outlined.LocationCity else Icons.Default.MyLocation, null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text(when {
+                        resolvingRegion -> "Menentukan titik wilayah…"
+                        locating -> "Mendeteksi lokasi…"
+                        regionBased -> "Perbarui titik wilayah"
+                        location == null -> "Aktifkan lokasi kiblat"
+                        else -> "Perbarui lokasi"
+                    })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveMockupDial(location: QiblaLocation?, diameter: Dp, showGuidance: Boolean,
+    modifier: Modifier = Modifier) {
+    val reading = if (location != null) compassReading(location) else CompassReading()
+    val bearing = remember(location) { location?.let { qiblaBearing(it.latitude, it.longitude) } }
+    val heading = reading.heading
+    val turn = if (bearing != null && heading != null && reading.supported) shortestTurn(bearing, heading) else null
+    var unwrapped by remember(location) { mutableStateOf(0f) }
+    LaunchedEffect(turn) {
+        if (turn != null) unwrapped += shortestTurn(turn, unwrapped.toDouble()).toFloat()
+    }
+    val needleAngle by animateFloatAsState(unwrapped, tween(180), label = "mockupQiblaNeedle")
+    val aligned = turn != null && abs(turn) <= 5 && reading.flat && !reading.unreliable
+    val copper = MaterialTheme.colorScheme.primary
+    val tick = MaterialTheme.colorScheme.outline
+    val ring = MaterialTheme.colorScheme.outlineVariant
+    val face = MaterialTheme.colorScheme.surface
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().graphicsLayer { rotationZ = -(heading ?: 0.0).toFloat() }) {
+                Canvas(Modifier.fillMaxSize().padding(14.dp)) {
+                    drawCircle(face)
+                    drawCircle(ring, style = Stroke(1.2.dp.toPx()))
+                    val radius = size.minDimension / 2f
+                    for (angle in 0 until 360 step 6) {
+                        val a = Math.toRadians(angle - 90.0)
+                        val length = (if (angle % 30 == 0) 7 else 3).dp.toPx()
+                        drawLine(if (angle % 90 == 0) copper else tick,
+                            Offset(center.x + cos(a).toFloat() * (radius - length - 3.dp.toPx()),
+                                center.y + sin(a).toFloat() * (radius - length - 3.dp.toPx())),
+                            Offset(center.x + cos(a).toFloat() * (radius - 3.dp.toPx()),
+                                center.y + sin(a).toFloat() * (radius - 3.dp.toPx())), strokeWidth = 0.8.dp.toPx())
+                    }
+                }
+                Text("U", style = MaterialTheme.typography.labelSmall, color = copper, modifier = Modifier.align(Alignment.TopCenter))
+                Text("T", style = MaterialTheme.typography.labelSmall, color = tick, modifier = Modifier.align(Alignment.CenterEnd))
+                Text("S", style = MaterialTheme.typography.labelSmall, color = tick, modifier = Modifier.align(Alignment.BottomCenter))
+                Text("B", style = MaterialTheme.typography.labelSmall, color = tick, modifier = Modifier.align(Alignment.CenterStart))
+            }
+            if (turn != null) {
+                Icon(Icons.Default.Navigation, "Panah arah kiblat", tint = if (aligned) MaterialTheme.colorScheme.secondary else copper,
+                    modifier = Modifier.size(if (showGuidance) 75.dp else 52.dp).graphicsLayer { rotationZ = needleAngle })
+            } else if (location != null && reading.supported && bearing != null) {
+                CircularProgressIndicator(Modifier.size(27.dp), color = copper, strokeWidth = 2.dp)
+            } else {
+                Icon(if (location == null) Icons.Default.MyLocation else Icons.Outlined.Explore,
+                    if (location == null) "Lokasi kiblat belum diatur" else "Sensor kompas tidak tersedia",
+                    tint = copper.copy(alpha = 0.6f), modifier = Modifier.size(32.dp))
+            }
+        }
+        val status = when {
+            location == null -> "Lokasi belum diatur"
+            bearing == null -> "Arah tidak dapat dihitung dari lokasi ini."
+            !reading.supported -> "Sensor kompas tidak tersedia"
+            heading == null -> "Menunggu sensor kompas…"
+            reading.unreliable -> "Kalibrasi kompas dengan gerakan angka 8."
+            !reading.flat -> "Pegang HP dalam posisi mendatar."
+            aligned -> "Sudah mengarah ke kiblat"
+            else -> "Putar HP ${if (turn!! > 0) "ke kanan" else "ke kiri"} ±${abs(turn.roundToInt())}°."
+        }
+        if (showGuidance || turn == null || reading.unreliable || !reading.flat) {
+            Text(status, style = MaterialTheme.typography.bodySmall,
+                color = if (aligned) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center, modifier = Modifier.width(if (showGuidance) 260.dp else diameter))
+        }
+    }
+}
+
+@Composable
+private fun KaabaMark(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width; val h = size.height
+        val top = Path().apply { moveTo(w*.08f,h*.23f); lineTo(w*.47f,h*.05f); lineTo(w*.93f,h*.22f); lineTo(w*.54f,h*.4f); close() }
+        val front = Path().apply { moveTo(w*.08f,h*.23f); lineTo(w*.54f,h*.4f); lineTo(w*.54f,h*.94f); lineTo(w*.08f,h*.76f); close() }
+        val side = Path().apply { moveTo(w*.54f,h*.4f); lineTo(w*.93f,h*.22f); lineTo(w*.93f,h*.76f); lineTo(w*.54f,h*.94f); close() }
+        drawPath(top, Color(0xFFC69A6C)); drawPath(front, Color(0xFF8D5638)); drawPath(side, Color(0xFF613C2D))
+        drawLine(Color(0xFFE7C28F), Offset(w*.08f,h*.39f), Offset(w*.54f,h*.56f), strokeWidth = h*.10f)
+        drawLine(Color(0xFFE7C28F), Offset(w*.54f,h*.56f), Offset(w*.93f,h*.38f), strokeWidth = h*.10f)
     }
 }

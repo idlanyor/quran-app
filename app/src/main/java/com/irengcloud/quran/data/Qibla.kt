@@ -10,8 +10,12 @@ data class QiblaLocation(
     val longitude: Double,
     val altitude: Double,
     val accuracyMeters: Float,
-    val updatedAt: Long
-)
+    val updatedAt: Long,
+    val regionProvince: String = "",
+    val regionCity: String = ""
+) {
+    val isManualRegion: Boolean get() = regionCity.isNotBlank()
+}
 
 fun normalizeDegrees(degrees: Double): Double = ((degrees % 360.0) + 360.0) % 360.0
 
