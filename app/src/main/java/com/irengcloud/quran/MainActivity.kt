@@ -7,11 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,12 +31,9 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -77,7 +70,6 @@ import com.irengcloud.quran.ui.DailyFeaturesViewModel
 import com.irengcloud.quran.reminders.DailyReminder
 import com.irengcloud.quran.ui.screens.PrayerScreen
 import com.irengcloud.quran.ui.components.MiniAudioPlayerBar
-import com.irengcloud.quran.ui.components.TafsirBottomSheet
 import com.irengcloud.quran.ui.screens.BookmarkKhatamScreen
 import com.irengcloud.quran.ui.screens.MoreScreen
 import com.irengcloud.quran.ui.screens.MurottalScreen
@@ -85,6 +77,7 @@ import com.irengcloud.quran.ui.screens.HomeScreen
 import com.irengcloud.quran.ui.screens.SearchAyatScreen
 import com.irengcloud.quran.ui.screens.SettingsScreen
 import com.irengcloud.quran.ui.screens.SurahDetailScreen
+import com.irengcloud.quran.ui.screens.TafsirScreen
 import com.irengcloud.quran.ui.theme.QuranAppTheme
 
 enum class AppNavTab(
@@ -141,6 +134,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (intent.action == DailyReminder.ACTION_OPEN_READER) reminderOpenRequest++
@@ -161,15 +155,22 @@ class MainActivity : ComponentActivity() {
                 darkTheme = useDarkTheme,
                 ivoryTheme = readerSettings.themeMode == ThemeMode.LIGHT
             ) {
-                QuranApp(viewModel = viewModel, reminderOpenRequest = reminderOpenRequest,
-                    onReminderHandled = { reminderOpenRequest = 0; intent.action = Intent.ACTION_MAIN })
+                QuranApp(
+                    viewModel = viewModel,
+                    reminderOpenRequest = reminderOpenRequest,
+                    onReminderHandled = { reminderOpenRequest = 0; intent.action = Intent.ACTION_MAIN }
+                )
             }
         }
     }
 }
 
 @Composable
-fun QuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminderHandled: () -> Unit = {}) {
+fun QuranApp(
+    viewModel: QuranViewModel,
+    reminderOpenRequest: Long = 0,
+    onReminderHandled: () -> Unit = {}
+) {
     val dailyFeatures: DailyFeaturesViewModel = viewModel()
     val allSurahs by viewModel.allSurahs.collectAsStateWithLifecycle()
     val filteredSurahs by viewModel.filteredSurahs.collectAsStateWithLifecycle()
@@ -205,6 +206,7 @@ fun QuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminde
 
     val openSurahAction: (Int, Int?) -> Unit = { surahNomor, targetAyat ->
         murottalStartVerse = null
+        viewModel.closeTafsirSheet()
         tabStateHolder.removeState("surah_reader")
         viewModel.openSurahDetail(surahNomor, targetAyat)
         isReadingSurahDetail = true
@@ -214,6 +216,7 @@ fun QuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminde
         if (reminderOpenRequest > 0) {
             val saved = viewModel.awaitLastRead()
             murottalStartVerse = null
+            viewModel.closeTafsirSheet()
             tabStateHolder.removeState("surah_reader")
             viewModel.openSurahDetail(saved.surahNomor, saved.ayatNomor)
             isReadingSurahDetail = true
@@ -221,21 +224,22 @@ fun QuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminde
         }
     }
 
-    BackHandler(enabled = !isReadingSurahDetail && currentTab in listOf(AppNavTab.SEARCH, AppNavTab.PRAYER, AppNavTab.SETTINGS)) {
+    BackHandler(enabled = !isReadingSurahDetail && !tafsirSheetState.isVisible && currentTab in listOf(AppNavTab.SEARCH, AppNavTab.PRAYER, AppNavTab.SETTINGS)) {
         currentTab = AppNavTab.MORE
     }
-    BackHandler(enabled = !isReadingSurahDetail && currentTab == AppNavTab.MORE) {
+    BackHandler(enabled = !isReadingSurahDetail && !tafsirSheetState.isVisible && currentTab == AppNavTab.MORE) {
         currentTab = AppNavTab.SURAH
     }
 
-    BackHandler(enabled = isReadingSurahDetail) {
+    BackHandler(enabled = isReadingSurahDetail && !tafsirSheetState.isVisible) {
         if (murottalStartVerse != null) murottalStartVerse = null
         else isReadingSurahDetail = false
     }
 
-    val fullScreenPage = isReadingSurahDetail || currentTab == AppNavTab.SETTINGS
+    val isViewingTafsir = tafsirSheetState.isVisible
+    val fullScreenPage = isViewingTafsir || isReadingSurahDetail || currentTab == AppNavTab.SETTINGS
     val pageBackground = when {
-        isReadingSurahDetail -> Color(0xFF252439)
+        isViewingTafsir || isReadingSurahDetail -> Color(0xFF252439)
         currentTab == AppNavTab.SEARCH -> Color(0xFF202034)
         currentTab == AppNavTab.SETTINGS -> Color(0xFF242338)
         else -> MaterialTheme.colorScheme.background
@@ -314,10 +318,11 @@ fun QuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminde
                         containerColor = MaterialTheme.colorScheme.surface
                     ) {
                         AppNavTab.entries.forEach { tab ->
-                            val selected = !isReadingSurahDetail && currentTab == tab
+                            val selected = !isReadingSurahDetail && !isViewingTafsir && currentTab == tab
                             NavigationRailItem(
                                 selected = selected,
                                 onClick = {
+                                    viewModel.closeTafsirSheet()
                                     isReadingSurahDetail = false
                                     murottalStartVerse = null
                                     currentTab = tab
@@ -502,8 +507,35 @@ fun QuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminde
                         }
                     }
 
+                    // Full-screen Tafsir overlay matching the mockup
+                    if (isViewingTafsir) {
+                        val isTafsirBookmarked = bookmarks.any {
+                            it.surahNomor == tafsirSheetState.surahNomor &&
+                                it.nomorAyat == tafsirSheetState.nomorAyat
+                        }
+                        TafsirScreen(
+                            state = tafsirSheetState,
+                            arabicFontSizeSp = readerSettings.arabicFontSizeSp,
+                            showLatin = readerSettings.showLatin,
+                            isBookmarked = isTafsirBookmarked,
+                            onBack = viewModel::closeTafsirSheet,
+                            onPreviousAyat = {
+                                viewModel.navigateTafsirAyat(tafsirSheetState.nomorAyat - 1)
+                            },
+                            onNextAyat = {
+                                viewModel.navigateTafsirAyat(tafsirSheetState.nomorAyat + 1)
+                            },
+                            onToggleBookmark = viewModel::toggleTafsirBookmark,
+                            onPlayAudio = viewModel::playTafsirAyatAudio,
+                            onRefreshTafsir = {
+                                viewModel.navigateTafsirAyat(tafsirSheetState.nomorAyat, forceRefresh = true)
+                            },
+                            onCopyTafsir = viewModel::showSnackbar
+                        )
+                    }
+
                     // Floating Mini Audio Player Bar
-                    if (!isReadingSurahDetail) MiniAudioPlayerBar(
+                    if (!isReadingSurahDetail && !isViewingTafsir) MiniAudioPlayerBar(
                         audioState = audioState,
                         onTogglePlayPause = { viewModel.audioController.togglePlayPause() },
                         onNext = { viewModel.audioController.playNextVerse() },
@@ -516,14 +548,6 @@ fun QuranApp(viewModel: QuranViewModel, reminderOpenRequest: Long = 0, onReminde
                     )
                 }
             }
-
-            // Kemenag RI Tafsir Modal Bottom Sheet
-            TafsirBottomSheet(
-                state = tafsirSheetState,
-                arabicFontSizeSp = readerSettings.arabicFontSizeSp,
-                onDismiss = viewModel::closeTafsirSheet,
-                onCopyTafsir = viewModel::showSnackbar
-            )
         }
     }
 }

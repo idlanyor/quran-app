@@ -59,8 +59,10 @@ data class TafsirSheetUiState(
     val isLoading: Boolean = false,
     val surahNomor: Int = 1,
     val surahNamaLatin: String = "",
+    val jumlahAyat: Int = 1,
     val nomorAyat: Int = 1,
     val teksArab: String = "",
+    val teksLatin: String = "",
     val teksIndonesia: String = "",
     val teksTafsir: String = "",
     val errorMessage: String? = null
@@ -160,6 +162,7 @@ class QuranViewModel(
 
     private val _tafsirSheetState = MutableStateFlow(TafsirSheetUiState())
     val tafsirSheetState: StateFlow<TafsirSheetUiState> = _tafsirSheetState.asStateFlow()
+    private var tafsirJob: Job? = null
 
     private val _searchState = MutableStateFlow(SearchUiState())
     val searchState: StateFlow<SearchUiState> = _searchState.asStateFlow()
@@ -242,22 +245,27 @@ class QuranViewModel(
         }
     }
 
-    fun openTafsirForAyat(surah: SurahEntity, ayat: AyatEntity) {
-        viewModelScope.launch {
-            _tafsirSheetState.value = TafsirSheetUiState(
-                isVisible = true,
-                isLoading = true,
-                surahNomor = surah.nomor,
-                surahNamaLatin = surah.namaLatin,
-                nomorAyat = ayat.nomorAyat,
-                teksArab = ayat.teksArab,
-                teksIndonesia = ayat.teksIndonesia
-            )
+    fun openTafsirForAyat(surah: SurahEntity, ayat: AyatEntity, forceRefresh: Boolean = false) {
+        tafsirJob?.cancel()
+        _tafsirSheetState.value = TafsirSheetUiState(
+            isVisible = true,
+            isLoading = true,
+            surahNomor = surah.nomor,
+            surahNamaLatin = surah.namaLatin,
+            jumlahAyat = surah.jumlahAyat.coerceAtLeast(1),
+            nomorAyat = ayat.nomorAyat,
+            teksArab = ayat.teksArab,
+            teksLatin = ayat.teksLatin,
+            teksIndonesia = ayat.teksIndonesia
+        )
 
+        tafsirJob = viewModelScope.launch {
             val result = repository.fetchAndCacheSurahTafsir(
                 surahNomor = surah.nomor,
-                nomorAyat = ayat.nomorAyat
+                nomorAyat = ayat.nomorAyat,
+                forceRefresh = forceRefresh
             )
+            ensureActive()
             result.fold(
                 onSuccess = { tafsirList ->
                     val matched = tafsirList.find { it.nomorAyat == ayat.nomorAyat }
@@ -284,7 +292,81 @@ class QuranViewModel(
         }
     }
 
+    fun navigateTafsirAyat(targetAyatNomor: Int, forceRefresh: Boolean = false) {
+        val current = _tafsirSheetState.value
+        if (!current.isVisible) return
+        val maxAyat = current.jumlahAyat.coerceAtLeast(1)
+        val clamped = targetAyatNomor.coerceIn(1, maxAyat)
+        if (clamped == current.nomorAyat && !forceRefresh && !current.isLoading) return
+
+        tafsirJob?.cancel()
+        tafsirJob = viewModelScope.launch {
+            val surah = _surahDetailState.value.surah?.takeIf { it.nomor == current.surahNomor }
+                ?: allSurahs.value.find { it.nomor == current.surahNomor }
+            val loadedAyats = _surahDetailState.value.ayats.takeIf {
+                _surahDetailState.value.surah?.nomor == current.surahNomor && it.isNotEmpty()
+            } ?: repository.fetchAndCacheSurahDetail(current.surahNomor).getOrNull()?.second.orEmpty()
+
+            val targetAyat = loadedAyats.find { it.nomorAyat == clamped }
+            if (surah != null && targetAyat != null) {
+                openTafsirForAyat(surah, targetAyat, forceRefresh = forceRefresh)
+            }
+        }
+    }
+
+    fun toggleTafsirBookmark() {
+        val current = _tafsirSheetState.value
+        if (!current.isVisible) return
+        val surah = _surahDetailState.value.surah?.takeIf { it.nomor == current.surahNomor }
+            ?: allSurahs.value.find { it.nomor == current.surahNomor }
+            ?: SurahEntity(
+                nomor = current.surahNomor,
+                namaArab = "",
+                namaLatin = current.surahNamaLatin,
+                arti = "",
+                jumlahAyat = current.jumlahAyat,
+                tempatTurun = "Makkiyah"
+            )
+        val ayat = _surahDetailState.value.ayats.find {
+            it.surahNomor == current.surahNomor && it.nomorAyat == current.nomorAyat
+        } ?: AyatEntity(
+            surahNomor = current.surahNomor,
+            nomorAyat = current.nomorAyat,
+            teksArab = current.teksArab,
+            teksLatin = current.teksLatin,
+            teksIndonesia = current.teksIndonesia
+        )
+        toggleBookmark(surah, ayat)
+    }
+
+    fun playTafsirAyatAudio() {
+        val current = _tafsirSheetState.value
+        if (!current.isVisible) return
+        val surah = _surahDetailState.value.surah?.takeIf { it.nomor == current.surahNomor }
+            ?: allSurahs.value.find { it.nomor == current.surahNomor }
+        val ayats = _surahDetailState.value.ayats.takeIf {
+            _surahDetailState.value.surah?.nomor == current.surahNomor && it.isNotEmpty()
+        }
+        if (surah != null && ayats != null) {
+            playSingleVerseAudio(surah, ayats, current.nomorAyat)
+        } else {
+            playSearchItemAudio(
+                SearchAyatItem(
+                    surahNomor = current.surahNomor,
+                    surahNamaLatin = current.surahNamaLatin,
+                    surahNamaArab = surah?.namaArab.orEmpty(),
+                    nomorAyat = current.nomorAyat,
+                    teksArab = current.teksArab,
+                    teksLatin = current.teksLatin,
+                    teksIndonesia = current.teksIndonesia,
+                    audioUrl = alafasyVerseUrl(current.surahNomor, current.nomorAyat)
+                )
+            )
+        }
+    }
+
     fun closeTafsirSheet() {
+        tafsirJob?.cancel()
         _tafsirSheetState.update { it.copy(isVisible = false) }
     }
 
