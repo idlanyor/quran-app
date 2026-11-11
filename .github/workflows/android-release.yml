@@ -121,18 +121,19 @@ jobs:
           body: |
             ## Digital Qur'an ${{ steps.release_meta.outputs.tag_name }}
 
-            Petunjuk Tuhan dalam genggaman.
+            Pedoman Hidup dalam Genggaman.
 
             ### Unduh File APK:
             - **`DigitalQuran-release.apk`**: Versi rilis siap pasang (direkomendasikan).
             - **`DigitalQuran-debug.apk`**: Versi pengujian/debug.
 
-            ### Fitur Utama:
-            - 114 Surah Al-Qur'an dengan teks Arab (Amiri), transliterasi Latin, dan terjemahan Bahasa Indonesia.
-            - Tafsir resmi Kementerian Agama RI per ayat.
-            - Pemutar audio murottal per ayat & satu surah penuh.
-            - Fitur Auto-Scroll dengan pengaturan kecepatan (1x–10x) & navigasi sticky di atas halaman ayat.
-            - Khatam Tracker harian (mode Target Ayat & Target Surah) serta penyimpanan Bookmark & Cache Offline.
+            ### Pembaruan di v2.0.0:
+            - **Redesain Antarmuka Penuh**: Tema Islami Midnight Indigo & Warm Ivory/Copper Gold sesuai mockup resmi.
+            - **Layar Tafsir Baru**: Tampilan satu layar penuh dengan lengkungan kubah, navigasi ayat, terjemahan, dan akordeon tafsir.
+            - **Splash Screen Baru**: Transisi native yang mulus menggunakan Android 12+ SplashScreen API.
+            - **Murottal Audio Player**: Mini player mengambang dan layar player lengkap dengan pilihan qari serta playlist per ayat.
+            - **Pencarian Ayat Pintar**: Filter relevansi, highlight kata kunci, dan kata kunci populer.
+            - **Jadwal Salat & Kompas Kiblat**: Jadwal waktu salat akurat berdasarkan lokasi dan penunjuk arah kiblat presisi.
           files: |
             dist/DigitalQuran-release.apk
             dist/DigitalQuran-debug.apk
