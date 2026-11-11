@@ -1,0 +1,19 @@
+Use case: ads-marketing
+Create a polished Indonesian promotional poster for the Android app Digital Qur'an. Portrait 2:3 aspect ratio, high resolution, crisp readable typography.
+Supporting reference images: image 1 contains four phones; use ONLY its first phone (Beranda) and second phone (Ayat). Image 2 contains four phones; use ONLY its second phone (Tafsir) and third phone (Murottal). Image 3 is the actual brand logo to place small next to the app name.
+Preserve the recognizable navy/ivory/gold mockup appearance. Exactly FOUR complete smartphone mockups total, large and clear, in a balanced 2x2 grid. Top row Beranda and Ayat, bottom row Tafsir and Murottal. All four screens visible without overlap or cropping. Faithfully use those specific reference screens. For Tafsir, change the source label to "Tafsir Kemenag" to match the app implementation; avoid any claim of Ibnu Katsir. Keep Arabic confined to the reference phone screens, do not add decorative Quran verses.
+Art direction: elegant editorial app advertising, midnight navy backdrop, restrained thin gold Islamic geometric corner ornaments, warm ivory typography, subtle warm illumination and soft realistic phone shadows. Clear hierarchy, generous margins, avoid busy decorations. Phone mockups dominant, feature text outside phones readable, no long paragraphs. Heading in refined serif, feature captions in clean sans-serif.
+Exact poster text:
+At top small brand with logo: "Digital Qur’an"
+Large headline, two lines: "Lebih dekat dengan" / "Al-Qur’an, setiap hari."
+Smaller supporting line: "Baca, pahami, dan dengarkan dalam satu aplikasi."
+Under or beside each corresponding phone, outside screen:
+"BERANDA" / "114 surah, pencarian, dan akses fitur harian."
+"AYAT" / "Teks Arab, latin, dan terjemahan Indonesia."
+"TAFSIR" / "Pahami makna ayat dengan tafsir Kemenag."
+"MUROTTAL" / "Dengarkan lantunan ayat dari qari pilihan."
+Bottom elegant compact feature strip:
+"Penanda & progres khatam • Jadwal salat & arah kiblat"
+"Pengingat membaca • Ukuran huruf & tema"
+Final footer call to action: "Mulai perjalanan tilawahmu hari ini."
+Do not add URLs, QR codes, app store badges, pricing, download availability claims or watermarks. Carefully spell all Indonesian copy. Professional finished poster, not a design presentation.
