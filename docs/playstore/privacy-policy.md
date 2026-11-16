@@ -33,4 +33,4 @@ Pengguna dapat mencabut izin lokasi dan notifikasi melalui pengaturan Android, m
 
 ## Kontak dan perubahan
 
-Pertanyaan mengenai privasi dapat disampaikan kepada pengelola proyek melalui [Issues Digital Qur’an](https://github.com/idlanyor/quran-app/issues). Kebijakan ini akan diperbarui bila pemrosesan data berubah.
+Pertanyaan mengenai privasi dapat disampaikan kepada pengelola Digital Qur’an melalui [support@irengcloud.com](mailto:support@irengcloud.com) atau [Issues Digital Qur’an](https://github.com/idlanyor/quran-app/issues). Kebijakan ini akan diperbarui bila pemrosesan data berubah.

@@ -4,6 +4,7 @@
 - Version name: `2.0.1`; version code: `4`.
 - Target SDK: `36`; minimum SDK: `24`.
 - Pengajuan Play Store pertama, dikonfirmasi pemilik pada 16 November 2026. Tidak ada versi Play Store yang perlu diperbarui dari rilis sebelumnya.
+- Email dukungan publik: `support@irengcloud.com`, dikonfirmasi pemilik.
 - Build lokal: `powershell -NoProfile -File scripts/build-release.ps1`.
 - AAB dan APK menggunakan keystore rilis yang sudah tersedia di `release-signing/`; folder ini tidak masuk Git.
 
@@ -20,7 +21,7 @@
 2. Cocokkan SHA-256 upload certificate AAB dengan **App integrity → Upload key certificate**. Sertifikat **App signing key** Google Play dapat berbeda; jangan mengganti keystore hanya karena keduanya berbeda. Jika upload key yang terdaftar berbeda, gunakan kunci asli atau prosedur reset resmi.
 3. Unggah AAB ke internal testing, periksa hasil App Bundle Explorer dan pre-launch report, lalu uji pembaruan dari aplikasi Play Store yang sudah ada. APK GitHub hanya dapat menimpa instalasi dengan sertifikat yang sama.
 4. Tinjau deklarasi Data safety sesuai implementasi dan penyedia layanan. Lokasi opsional diproses lewat layanan Geocoder Android; koordinat terakhir juga disimpan dalam preferensi lokal. API menerima informasi jaringan dan parameter permintaan, termasuk kata kunci dan pilihan wilayah. Jangan menyatakan “tidak ada pengumpulan data” tanpa menilai pemrosesan di luar perangkat dan log penyedia.
-5. App access: tidak membutuhkan akun. Ads: tidak terdapat SDK/penempatan iklan pada build ini. Lengkapi target usia, rating konten, email dukungan, dan informasi pengembang dengan data pemilik akun.
+5. App access: tidak membutuhkan akun. Ads: tidak terdapat SDK/penempatan iklan pada build ini. Gunakan email dukungan `support@irengcloud.com`. Lengkapi target usia, rating konten, dan informasi pengembang dengan data pemilik akun.
 6. Gunakan URL kebijakan privasi publik yang aktif. Tambahkan ikon 512×512, feature graphic 1024×500, dan screenshot build produksi yang sesuai; jangan gunakan screenshot aplikasi Uji atau gambar mockup sebagai bukti tampilan aplikasi.
 7. Publikasi Play Store dan publikasi draft GitHub dilakukan setelah pemeriksaan akun dan penandatanganan di atas selesai.
 

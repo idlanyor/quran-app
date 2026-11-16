@@ -29,7 +29,9 @@ Sumber konten mencakup Kemenag melalui layanan Al-Qur’an, EQuran.id, dan penye
 URL kebijakan privasi setelah commit ini dipush:
 https://github.com/idlanyor/quran-app/blob/main/docs/playstore/privacy-policy.md
 
+Email dukungan publik: support@irengcloud.com
+
 Kontak proyek:
 https://github.com/idlanyor/quran-app/issues
 
-Email dukungan Play Console, kategori, target usia, dan kuesioner rating diisi pemilik akun sebelum pengajuan. Jangan mengganti email dukungan dengan alamat yang belum dikonfirmasi.
+Kategori, target usia, dan kuesioner rating diisi pemilik akun sebelum pengajuan. Email dukungan publik telah dikonfirmasi pemilik: support@irengcloud.com.
