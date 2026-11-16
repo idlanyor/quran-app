@@ -14,12 +14,13 @@ try {
     $env:KEYSTORE_PATH = Join-Path $projectDirectory $credentials.keystore
     $env:STORE_PASSWORD = $credentials.storePassword
     $env:KEY_PASSWORD = $credentials.keyPassword
-    $arguments = @(':app:lintRelease', ':app:testDebugUnitTest', ':app:bundleRelease', '--no-configuration-cache')
+    $arguments = @(':app:lintRelease', ':app:testDebugUnitTest', ':app:bundleRelease', ':app:assembleRelease', '--no-configuration-cache')
     if ($Offline) { $arguments += '--offline' }
     Push-Location $projectDirectory
     try {
         & (Join-Path $projectDirectory 'gradlew.bat') @arguments
         if ($LASTEXITCODE -ne 0) { throw "Release build failed with exit code $LASTEXITCODE." }
+        & (Join-Path $PSScriptRoot 'package-release.ps1')
     } finally { Pop-Location }
 } finally {
     $env:KEYSTORE_PATH = $previousKeystorePath

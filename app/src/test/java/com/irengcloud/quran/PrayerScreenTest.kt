@@ -107,6 +107,7 @@ class PrayerScreenTest {
         composeTestRule.onNodeWithTag("filter_chip_qibla").assertIsDisplayed()
         composeTestRule.onNodeWithTag("filter_chip_month").assertExists()
         composeTestRule.onNodeWithTag("prayer_detect_location").assertExists()
+        composeTestRule.onNodeWithText("Imsak").assertExists()
 
         // Switch to "Arah Kiblat" section where qibla_card is displayed at the top
         composeTestRule.onNodeWithTag("filter_chip_qibla").performClick()

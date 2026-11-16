@@ -1,141 +1,124 @@
-name: Build APK & Publish Release to idlanyor/quran-app
+name: Verify Android & Prepare Release
 
 on:
   push:
-    branches:
-      - main
-      - master
-    tags:
-      - 'v*'
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Tag versi rilis (contoh: v2.0.0)'
+        description: 'Tag versi rilis (contoh: v2.0.1)'
         required: true
         type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
-    name: Build Digital Quran APK
+  verify:
+    name: Lint, tests & debug APK
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Prepare Keystore for Debug & Release Signing
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          STORE_PASSWORD_SECRET: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD_SECRET: ${{ secrets.KEY_PASSWORD }}
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare debug keystore
         run: |
-          if [ ! -f "debug.keystore" ]; then
-            keytool -genkeypair -v \
-              -keystore debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
-            echo "STORE_PASSWORD=${STORE_PASSWORD_SECRET}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${KEY_PASSWORD_SECRET}" >> $GITHUB_ENV
-          else
-            keytool -genkeypair -v \
-              -keystore my-upload-key.jks \
-              -storepass nurquran123 \
-              -alias upload \
-              -keypass nurquran123 \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=NurQuran Release,OU=Mobile,O=NurQuran,L=Jakarta,ST=DKI,C=ID"
-            echo "STORE_PASSWORD=nurquran123" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=nurquran123" >> $GITHUB_ENV
-          fi
-          echo "KEYSTORE_PATH=${GITHUB_WORKSPACE}/my-upload-key.jks" >> $GITHUB_ENV
-
-      - name: Build Debug & Release APK
+          keytool -genkeypair -keystore debug.keystore -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
+      - name: Verify app
         run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-            ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace
-          else
-            gradle assembleDebug assembleRelease --no-daemon --stacktrace
-          fi
-
-      - name: Rename APKs for Distribution
-        run: |
-          mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/DigitalQuran-debug.apk
-          cp app/build/outputs/apk/release/app-release.apk dist/DigitalQuran-release.apk
-          ls -lh dist/
-
-      - name: Upload APK Artifacts
-        uses: actions/upload-artifact@v4
+          chmod +x gradlew
+          ./gradlew :app:lintRelease :app:testDebugUnitTest :app:assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: DigitalQuran-APKs
+          name: Android-checks
           path: |
-            dist/DigitalQuran-release.apk
-            dist/DigitalQuran-debug.apk
-          retention-days: 30
+            app/build/reports/lint-results-release.*
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
 
-      - name: Determine Release Tag
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-        id: release_meta
+  prepare-release:
+    name: Signed APK, Play Store AAB & draft release
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Validate version and notes
+        id: version
         env:
           REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            TAG_NAME="${GITHUB_REF#refs/tags/}"
-          else
-            TAG_NAME="$REQUESTED_RELEASE_TAG"
-          fi
-          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
-
-      - name: Publish Release to github.com/idlanyor/quran-app/releases
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+          VERSION=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' app/build.gradle.kts)
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then TAG_NAME="$REQUESTED_RELEASE_TAG"; fi
+          [[ "$TAG_NAME" == "v$VERSION" ]] || { echo 'Tag must match versionName'; exit 1; }
+          test -f "docs/releases/$TAG_NAME.md"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
+      - name: Restore existing release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          [[ -n "$KEYSTORE_BASE64" && -n "$STORE_PASSWORD" && -n "$KEY_PASSWORD" ]] || {
+            echo 'Existing signing secrets are required. A replacement release key will not be generated.'; exit 1;
+          }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          chmod 600 "$RUNNER_TEMP/upload.jks"
+      - name: Build signed release
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/upload.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --no-configuration-cache
+      - name: Prepare distribution files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/DigitalQuran-$VERSION-release.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "dist/DigitalQuran-$VERSION-playstore.aab"
+          (cd dist && sha256sum *.apk *.aab > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DigitalQuran-${{ steps.version.outputs.version }}-release
+          path: |
+            dist/
+            app/build/outputs/mapping/release/mapping.txt
+          retention-days: 30
+      - name: Prepare GitHub Release draft
         uses: softprops/action-gh-release@v2
         with:
-          repository: idlanyor/quran-app
-          tag_name: ${{ steps.release_meta.outputs.tag_name }}
-          name: "Digital Qur'an ${{ steps.release_meta.outputs.tag_name }}"
-          generate_release_notes: true
-          body: |
-            ## Digital Qur'an ${{ steps.release_meta.outputs.tag_name }}
-
-            Pedoman Hidup dalam Genggaman.
-
-            ### Unduh File APK:
-            - **`DigitalQuran-release.apk`**: Versi rilis siap pasang (direkomendasikan).
-            - **`DigitalQuran-debug.apk`**: Versi pengujian/debug.
-
-            ### Pembaruan di v2.0.0:
-            - **Redesain Antarmuka Penuh**: Tema Islami Midnight Indigo & Warm Ivory/Copper Gold sesuai mockup resmi.
-            - **Layar Tafsir Baru**: Tampilan satu layar penuh dengan lengkungan kubah, navigasi ayat, terjemahan, dan akordeon tafsir.
-            - **Splash Screen Baru**: Transisi native yang mulus menggunakan Android 12+ SplashScreen API.
-            - **Murottal Audio Player**: Mini player mengambang dan layar player lengkap dengan pilihan qari serta playlist per ayat.
-            - **Pencarian Ayat Pintar**: Filter relevansi, highlight kata kunci, dan kata kunci populer.
-            - **Jadwal Salat & Kompas Kiblat**: Jadwal waktu salat akurat berdasarkan lokasi dan penunjuk arah kiblat presisi.
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Digital Qur'an ${{ steps.version.outputs.tag }}
+          draft: true
+          body_path: docs/releases/${{ steps.version.outputs.tag }}.md
+          fail_on_unmatched_files: true
           files: |
-            dist/DigitalQuran-release.apk
-            dist/DigitalQuran-debug.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+            dist/*.apk
+            dist/*.aab
+            dist/SHA256SUMS.txt

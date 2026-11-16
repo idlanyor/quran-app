@@ -146,7 +146,7 @@ class PrayerRepository(context: Context, private val api: PrayerApi = createApi(
                 val date = day.getString("tanggal_lengkap")
                 val number = day.getInt("tanggal")
                 require(number in 1..expectedDays && date == String.format(Locale.US, "%04d-%02d-%02d", year, month, number))
-                PrayerDay(date, day.getString("hari"), fields.map { (label, key) ->
+                PrayerDay(date, day.getString("hari").let { if (it.equals("Minggu", ignoreCase = true)) "Ahad" else it }, fields.map { (label, key) ->
                     label to day.getString(key).also { require(timesPattern.matches(it)) }
                 })
             }

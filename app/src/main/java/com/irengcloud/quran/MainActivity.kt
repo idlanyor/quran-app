@@ -72,6 +72,10 @@ import com.irengcloud.quran.ui.screens.PrayerScreen
 import com.irengcloud.quran.ui.components.MiniAudioPlayerBar
 import com.irengcloud.quran.ui.screens.BookmarkKhatamScreen
 import com.irengcloud.quran.ui.screens.MoreScreen
+import com.irengcloud.quran.ui.screens.HijriCalendarScreen
+import com.irengcloud.quran.ui.screens.DuaScreen
+import com.irengcloud.quran.ui.DuaViewModel
+import androidx.compose.material.icons.outlined.CalendarMonth
 import com.irengcloud.quran.ui.screens.MurottalScreen
 import com.irengcloud.quran.ui.screens.HomeScreen
 import com.irengcloud.quran.ui.screens.SearchAyatScreen
@@ -115,6 +119,18 @@ enum class AppNavTab(
         selectedIcon = Icons.Filled.Apps,
         unselectedIcon = Icons.Filled.Apps,
         testTag = "nav_tab_more"
+    ),
+    DUA(
+        label = "Doa Harian",
+        selectedIcon = Icons.Filled.Apps,
+        unselectedIcon = Icons.Filled.Apps,
+        testTag = "nav_tab_dua"
+    ),
+    CALENDAR(
+        label = "Kalender Hijriyah",
+        selectedIcon = Icons.Outlined.CalendarMonth,
+        unselectedIcon = Icons.Outlined.CalendarMonth,
+        testTag = "nav_tab_calendar"
     ),
     SETTINGS(
         label = "Pengaturan",
@@ -224,7 +240,7 @@ fun QuranApp(
         }
     }
 
-    BackHandler(enabled = !isReadingSurahDetail && !tafsirSheetState.isVisible && currentTab in listOf(AppNavTab.SEARCH, AppNavTab.PRAYER, AppNavTab.SETTINGS)) {
+    BackHandler(enabled = !isReadingSurahDetail && !tafsirSheetState.isVisible && currentTab in listOf(AppNavTab.SEARCH, AppNavTab.PRAYER, AppNavTab.SETTINGS, AppNavTab.CALENDAR, AppNavTab.DUA)) {
         currentTab = AppNavTab.MORE
     }
     BackHandler(enabled = !isReadingSurahDetail && !tafsirSheetState.isVisible && currentTab == AppNavTab.MORE) {
@@ -242,6 +258,8 @@ fun QuranApp(
         isViewingTafsir || isReadingSurahDetail -> Color(0xFF252439)
         currentTab == AppNavTab.SEARCH -> Color(0xFF202034)
         currentTab == AppNavTab.SETTINGS -> Color(0xFF242338)
+        currentTab == AppNavTab.CALENDAR -> Color(0xFF242338)
+        currentTab == AppNavTab.DUA -> Color(0xFF252439)
         else -> MaterialTheme.colorScheme.background
     }
     val navigationBackground = if (fullScreenPage) pageBackground else MaterialTheme.colorScheme.surface
@@ -479,12 +497,26 @@ fun QuranApp(
                                         MoreScreen(
                                             onOpenSearch = { currentTab = AppNavTab.SEARCH },
                                             onOpenPrayer = { currentTab = AppNavTab.PRAYER },
-                                            onOpenSettings = { currentTab = AppNavTab.SETTINGS }
+                                            onOpenSettings = { currentTab = AppNavTab.SETTINGS },
+                                            onOpenCalendar = { currentTab = AppNavTab.CALENDAR },
+                                            onOpenDua = { currentTab = AppNavTab.DUA }
                                         )
                                     }
 
                                     AppNavTab.PRAYER -> {
                                         PrayerScreen(readerSettings, dailyFeatures)
+                                    }
+
+                                    AppNavTab.DUA -> {
+                                        val duaViewModel: DuaViewModel = viewModel()
+                                        val duaState by duaViewModel.state.collectAsStateWithLifecycle()
+                                        DuaScreen(duaState, readerSettings,
+                                            onBack = { currentTab = AppNavTab.MORE },
+                                            onRefresh = { duaViewModel.load(refresh = true) })
+                                    }
+
+                                    AppNavTab.CALENDAR -> {
+                                        HijriCalendarScreen(onBack = { currentTab = AppNavTab.MORE })
                                     }
 
                                     AppNavTab.SETTINGS -> {

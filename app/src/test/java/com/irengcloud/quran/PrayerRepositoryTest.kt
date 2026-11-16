@@ -94,4 +94,9 @@ class PrayerRepositoryTest {
         root.getJSONObject("data").getJSONArray("jadwal").remove(0)
         assertTrue(runCatching { PrayerRepository.parseMonth(root.toString(), "DKI Jakarta", "Kota Jakarta", 2026, 10) }.isFailure)
     }
+    @Test fun sundayApiLabelsAreDisplayedAsAhad() {
+        val raw = fixture().replace("\"hari\":\"Hari\"", "\"hari\":\"Minggu\"")
+        val month = PrayerRepository.parseMonth(raw, "DKI Jakarta", "Kota Jakarta", 2026, 10)
+        assertTrue(month.days.all { it.label == "Ahad" })
+    }
 }

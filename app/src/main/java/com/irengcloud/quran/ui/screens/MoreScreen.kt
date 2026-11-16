@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -22,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.irengcloud.quran.R
@@ -32,8 +35,11 @@ fun MoreScreen(
     onOpenSearch: () -> Unit,
     onOpenPrayer: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenCalendar: () -> Unit,
+    onOpenDua: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val uriHandler = LocalUriHandler.current
     Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxSize().widthIn(max = 840.dp).testTag("more_screen"),
@@ -72,9 +78,23 @@ fun MoreScreen(
                 MoreMenuCard("Jadwal Sholat & Kiblat", "Waktu sholat dan arah kiblat di lokasimu.",
                     Icons.Outlined.AccessTime, "more_prayer", onOpenPrayer)
             }
+            item(key = "calendar", contentType = "feature") {
+                MoreMenuCard("Kalender Hijriyah", "Lihat tanggal Hijriyah dan padanannya dalam kalender Masehi.",
+                    Icons.Outlined.CalendarMonth, "more_calendar", onOpenCalendar)
+            }
+            item(key = "dua", contentType = "feature") {
+                MoreMenuCard("Doa Harian", "Bacaan doa dan dzikir untuk menemani aktivitasmu.",
+                    Icons.AutoMirrored.Filled.MenuBook, "more_dua", onOpenDua)
+            }
             item(key = "settings", contentType = "feature") {
                 MoreMenuCard("Pengaturan", "Ukuran huruf, tema, terjemahan, dan pengingat.",
                     Icons.Outlined.Settings, "more_settings", onOpenSettings)
+            }
+            item(key = "privacy") {
+                androidx.compose.material3.TextButton(
+                    onClick = { uriHandler.openUri("https://github.com/idlanyor/quran-app/blob/main/docs/playstore/privacy-policy.md") },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                ) { Text("Kebijakan Privasi") }
             }
         }
     }

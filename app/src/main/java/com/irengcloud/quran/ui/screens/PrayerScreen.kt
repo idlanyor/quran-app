@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.runtime.mutableLongStateOf
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import java.text.SimpleDateFormat
+import com.irengcloud.quran.data.indonesianDateFormat
 import java.util.Date
 import com.irengcloud.quran.R
 import com.irengcloud.quran.ui.components.AppArtwork
@@ -230,11 +230,12 @@ fun PrayerScreen(
     var clockTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (isActive) { delay(30_000); clockTick = System.currentTimeMillis() } }
     val mainNames = remember { setOf("Subuh", "Zuhur", "Asar", "Magrib", "Isya") }
+    val scheduleNames = remember { listOf("Imsak", "Subuh", "Zuhur", "Asar", "Magrib", "Isya") }
     val nextPrayer = remember(todaySchedule, timeZone.id, clockTick) {
         todaySchedule?.let { calculateNextPrayer(it.times.filter { item -> item.first in mainNames }, timeZone) }
     }
     val formattedDate = remember(today, timeZone.id) {
-        SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.forLanguageTag("id-ID")).apply { this.timeZone = timeZone }.format(Date())
+        indonesianDateFormat("EEEE, dd MMMM yyyy", timeZone).format(Date())
     }
     var cityPickerProvince by rememberSaveable { mutableStateOf<String?>(null) }
     val regionBasedQibla = qiblaLocation?.isManualRegion == true ||
@@ -330,11 +331,11 @@ fun PrayerScreen(
                     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 7.dp)) {
                         Column(Modifier.padding(6.dp)) {
-                            listOf("Subuh", "Zuhur", "Asar", "Magrib", "Isya").forEachIndexed { index, name ->
+                            scheduleNames.forEachIndexed { index, name ->
                                 val value = todaySchedule?.times?.firstOrNull { it.first == name }?.second
                                 MockupPrayerRow(if (name == "Magrib") "Maghrib" else name, value ?: "— : —",
                                     nextPrayer?.name == name && nextPrayer.isTomorrow.not(), prayerIcon(name))
-                                if (index != 4) HorizontalDivider(Modifier.padding(start = 44.dp, end = 10.dp),
+                                if (index != scheduleNames.lastIndex) HorizontalDivider(Modifier.padding(start = 44.dp, end = 10.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             }
                         }

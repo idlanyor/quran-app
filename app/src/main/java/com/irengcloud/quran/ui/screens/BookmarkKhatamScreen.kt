@@ -131,10 +131,10 @@ fun BookmarkKhatamScreen(
                     }
                 }
             }
-            item(key = "progress", contentType = "progress") {
-                KhatamSummaryCard(readerSettings, Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) { onSectionChange(0) }
-            }
             if (selectedSection == 0) {
+                item(key = "progress", contentType = "progress") {
+                    KhatamSummaryCard(readerSettings, Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                }
                 item(key = "khatam_tracker", contentType = "tracker") {
                     KhatamTrackerComponent(readerSettings, todayLog?.ayatCountRead ?: 0,
                         todayLog?.surahCountRead ?: 0, lastRead, onTargetModeChange,
@@ -165,7 +165,7 @@ fun BookmarkKhatamScreen(
                 item(key = "bookmarks_heading", contentType = "heading") {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 17.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Penanda (Bookmark)", style = MaterialTheme.typography.titleLarge)
+                        Text("Ayat Tersimpan", style = MaterialTheme.typography.titleLarge)
                         Text("${bookmarks.size} ayat", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary)
                     }
@@ -194,12 +194,12 @@ fun BookmarkKhatamScreen(
                         val label = remember(bookmark.timestamp, todayKey) {
                             val date = Date(bookmark.timestamp)
                             when (dayKey.format(date)) {
-                                todayKey -> "Hari ini"
-                                yesterday -> "Kemarin"
+                                todayKey -> "hari ini"
+                                yesterday -> "kemarin"
                                 else -> shortDate.format(date)
                             }
                         }
-                        BookmarkItemCard(bookmark, label,
+                        BookmarkItemCard(bookmark, label, readerSettings,
                             onOpen = { onOpenSurahAtAyat(bookmark.surahNomor, bookmark.nomorAyat) },
                             onPreview = { preview = bookmark }, onDelete = { pendingRemoval = bookmark })
                     }
@@ -226,14 +226,14 @@ private fun BookmarkSectionTab(label: String, selected: Boolean, bookmark: Boole
 }
 
 @Composable
-private fun KhatamSummaryCard(settings: ReaderSettingsState, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun KhatamSummaryCard(settings: ReaderSettingsState, modifier: Modifier = Modifier) {
     val chapterMode = settings.khatamTargetMode == KhatamTargetMode.CHAPTERS
     val completed = if (chapterMode) settings.totalKhatamSurahCompleted else settings.totalKhatamAyatCompleted
     val total = if (chapterMode) TOTAL_QURAN_SURAHS else TOTAL_QURAN_AYATS
     val unit = if (chapterMode) "surah" else "ayat"
     val progress = (completed.toFloat() / total).coerceIn(0f, 1f)
     val percent = "${(progress * 100).toInt()}%"
-    Surface(onClick = onClick, shape = RoundedCornerShape(18.dp), color = Color(0xFF252439),
+    Surface(shape = RoundedCornerShape(18.dp), color = Color(0xFF252439),
         modifier = modifier.fillMaxWidth().semantics { contentDescription = "Progres khatam $percent. $completed dari $total $unit." }
             .testTag("khatam_summary_card")) {
         Box(Modifier.fillMaxWidth().height(196.dp)) {
@@ -259,40 +259,65 @@ private fun KhatamSummaryCard(settings: ReaderSettingsState, modifier: Modifier 
 }
 
 @Composable
-private fun BookmarkItemCard(bookmark: BookmarkEntity, dateLabel: String,
+private fun BookmarkItemCard(bookmark: BookmarkEntity, dateLabel: String, settings: ReaderSettingsState,
     onOpen: () -> Unit, onPreview: () -> Unit, onDelete: () -> Unit) {
     var showMenu by remember { mutableStateOf(false) }
     Surface(onClick = onOpen, shape = RoundedCornerShape(15.dp), color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)), shadowElevation = 1.dp,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 5.dp)
             .testTag("bookmark_card_${bookmark.surahNomor}_${bookmark.nomorAyat}")) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(start = 12.dp, end = 5.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 Icon(Icons.Filled.Bookmark, null, tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(10.dp).size(21.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(bookmark.surahNamaLatin, style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Surah ke-${bookmark.surahNomor} · Ayat ${bookmark.nomorAyat}",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Serif),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(dateLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Box {
-                IconButton(onClick = { showMenu = true }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.MoreVert, "Menu penanda ${bookmark.surahNamaLatin} ayat ${bookmark.nomorAyat}",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
-                }
-                DropdownMenu(showMenu, onDismissRequest = { showMenu = false }) {
-                    DropdownMenuItem(text = { Text("Buka ayat") }, onClick = { showMenu = false; onOpen() })
-                    DropdownMenuItem(text = { Text("Lihat rincian") }, onClick = { showMenu = false; onPreview() })
-                    DropdownMenuItem(text = { Text("Hapus penanda") }, onClick = { showMenu = false; onDelete() },
-                        modifier = Modifier.testTag("delete_bookmark_${bookmark.surahNomor}_${bookmark.nomorAyat}"))
+                    modifier = Modifier.size(18.dp))
+                Text("${bookmark.surahNamaLatin} · Ayat ${bookmark.nomorAyat}",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Box {
+                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.MoreVert, "Menu penanda ${bookmark.surahNamaLatin} ayat ${bookmark.nomorAyat}",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
+                    }
+                    DropdownMenu(showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(text = { Text("Buka ayat") }, onClick = { showMenu = false; onOpen() })
+                        DropdownMenuItem(text = { Text("Lihat rincian") }, onClick = { showMenu = false; onPreview() })
+                        DropdownMenuItem(text = { Text("Hapus penanda") }, onClick = { showMenu = false; onDelete() },
+                            modifier = Modifier.testTag("delete_bookmark_${bookmark.surahNomor}_${bookmark.nomorAyat}"))
+                    }
                 }
             }
+            if (bookmark.teksArab.isNotBlank()) {
+                val arabicSize = settings.arabicFontSizeSp.coerceIn(24, 30)
+                Text(bookmark.teksArab,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = AmiriQuranFontFamily,
+                        fontSize = arabicSize.sp,
+                        lineHeight = (arabicSize * 1.8f).sp,
+                        textDirection = TextDirection.Rtl
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Right, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (bookmark.teksIndonesia.isNotBlank()) {
+                Text(bookmark.teksIndonesia,
+                    modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Serif,
+                        fontSize = settings.translationFontSizeSp.sp,
+                        lineHeight = (settings.translationFontSizeSp * 1.5f).sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text("Disimpan $dateLabel",
+                modifier = Modifier.padding(top = 11.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
