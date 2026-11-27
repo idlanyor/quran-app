@@ -46,7 +46,7 @@ def render(path, title, description, content):
 </head><body><a class="skip" href="#main">Lewati ke konten</a>
 <header class="wrap nav"><a class="brand" href="{prefix}" aria-label="Digital Qur’an, beranda"><img src="{prefix}assets/icon.png" width="43" height="43" alt="">Digital Qur’an</a><nav class="nav-links" aria-label="Navigasi utama"><a href="{prefix}#fitur">Fitur</a><a href="{prefix}#faq">Tanya jawab</a><a href="{prefix}privasi/">Privasi</a><a class="nav-cta" href="{prefix}dukungan/">Dukungan</a></nav></header>
 <main id="main">{content}</main>
-<footer class="wrap footer"><div class="footer-top"><a class="brand" href="{prefix}"><img src="{prefix}assets/icon.png" width="43" height="43" alt="">Digital Qur’an</a><nav class="footer-links" aria-label="Tautan informasi"><a href="{prefix}privasi/">Kebijakan privasi</a><a href="{prefix}hapus-data/">Kelola data</a><a href="{prefix}dukungan/">Dukungan</a><a href="https://github.com/idlanyor/quran-app">GitHub</a></nav></div><div class="footer-bottom"><span>© 2026 Digital Qur’an · Irengcloud</span><span>Pedoman Hidup dalam Genggaman.</span></div></footer>
+<footer class="wrap footer"><div class="footer-top"><a class="brand" href="{prefix}"><img src="{prefix}assets/icon.png" width="43" height="43" alt="">Digital Qur’an</a><nav class="footer-links" aria-label="Tautan informasi"><a href="{prefix}privasi/">Kebijakan privasi</a><a href="{prefix}ketentuan/">Persyaratan layanan</a><a href="{prefix}hapus-data/">Kelola data</a><a href="{prefix}dukungan/">Dukungan</a><a href="https://github.com/idlanyor/quran-app">GitHub</a></nav></div><div class="footer-bottom"><span>© 2026 Digital Qur’an · Irengcloud</span><span>Pedoman Hidup dalam Genggaman.</span></div></footer>
 </body></html>'''
     destination = OUT / path / 'index.html'
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -55,6 +55,7 @@ def render(path, title, description, content):
 render('', 'Digital Qur’an — Pedoman Hidup dalam Genggaman', 'Baca Al-Qur’an, pahami tafsir, dengarkan murottal, dan temukan doa serta jadwal Sholat dalam aplikasi Android Digital Qur’an.', (SOURCE / 'index.html').read_text())
 render('privasi', 'Kebijakan Privasi — Digital Qur’an', 'Cara Digital Qur’an mengelola data perangkat, lokasi opsional, permintaan konten, dan kartu ayat.', '<article class="legal">' + markdown((ROOT / 'docs/playstore/privacy-policy.md').read_text()) + '</article>')
 for slug, title, description in [
+    ('ketentuan', 'Persyaratan Layanan — Digital Qur’an', 'Persyaratan penggunaan aplikasi Android Digital Qur’an, sumber konten, layanan, serta kontak pengelola.'),
     ('dukungan', 'Dukungan — Digital Qur’an', 'Bantuan penggunaan, pelaporan masalah bacaan, dan kontak pengelola Digital Qur’an.'),
     ('hapus-data', 'Pengelolaan Data — Digital Qur’an', 'Cara mengelola izin, penanda, audio, cadangan, dan data lokal Digital Qur’an.'),
 ]:
@@ -66,6 +67,6 @@ shutil.rmtree(OUT / '404-page')
 (OUT / '.nojekyll').touch()
 (OUT / 'CNAME').write_text('quran.irengcloud.com\n')
 (OUT / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {ORIGIN}/sitemap.xml\n')
-urls = ['', 'privasi/', 'dukungan/', 'hapus-data/']
+urls = ['', 'privasi/', 'ketentuan/', 'dukungan/', 'hapus-data/']
 (OUT / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + ''.join(f'<url><loc>{ORIGIN}/{path}</loc></url>' for path in urls) + '</urlset>\n')
 print(f'Built static site at {OUT}')

@@ -14,6 +14,7 @@ Halaman publik:
 
 - `/`: pengenalan, fitur, screenshot, FAQ, status ketersediaan.
 - `/privasi/`: kebijakan privasi.
+- `/ketentuan/`: persyaratan layanan khusus aplikasi Digital Qur’an.
 - `/dukungan/`: kontak, pelaporan masalah, dan bantuan.
 - `/hapus-data/`: izin, data lokal, backup, dan batasan penghapusan log layanan.
 
