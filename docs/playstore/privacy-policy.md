@@ -1,6 +1,6 @@
 # Kebijakan Privasi Digital Qur’an
 
-Berlaku untuk aplikasi Android Digital Qur’an (`com.irengcloud.quran`). Diperbarui 16 November 2026.
+Berlaku untuk aplikasi Android Digital Qur’an (`com.irengcloud.quran`). Diperbarui 27 November 2026.
 
 ## Data di perangkat
 
@@ -22,6 +22,10 @@ Digital Qur’an menghubungi layanan berikut untuk menyediakan konten:
 - Layanan Geocoder yang tersedia pada perangkat untuk pencarian alamat atau titik wilayah.
 
 Permintaan konten dapat mencakup kata kunci pencarian, nomor surah/ayat, pilihan wilayah, atau alamat berkas audio. Seperti koneksi internet pada umumnya, penyedia layanan dapat menerima alamat IP dan informasi teknis permintaan. Pengelolaan log serta masa penyimpanannya oleh penyedia tersebut mengikuti praktik masing-masing penyedia; aplikasi tidak mengendalikan server pihak ketiga. Permintaan API yang ditetapkan aplikasi menggunakan HTTPS.
+
+## Berbagi kartu ayat
+
+Saat pengguna memilih bagikan ayat, aplikasi membuat gambar PNG di cache privat perangkat, dengan teks ayat, referensi surah/ayat, dan terjemahan bila dipilih. Gambar hanya diteruskan ke aplikasi yang dipilih pengguna melalui menu berbagi Android. Aplikasi penerima dapat menyimpan atau mengirim gambar sesuai tindakan pengguna dan kebijakannya. Digital Qur’an tidak mengunggah kartu ayat secara otomatis dan tidak membaca galeri foto pengguna. Berkas cache lama dibersihkan saat pembuatan berkas berbagi berikutnya; cache juga dapat dihapus oleh sistem atau melalui pengaturan Android.
 
 ## Notifikasi dan pencadangan
 

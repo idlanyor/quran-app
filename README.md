@@ -31,3 +31,7 @@ Jalankan `powershell -NoProfile -File scripts/build-release.ps1` untuk lint, sel
 - [Kebijakan privasi](docs/playstore/privacy-policy.md)
 
 Workflow GitHub memeriksa branch dan menyiapkan **draft** release pada tag versi atau pemicu manual. Rilis bertanda tangan memerlukan secret kunci yang sudah ada; workflow tidak membuat kunci pengganti.
+
+## Website GitHub Pages
+
+Landing page, kebijakan privasi, dukungan, dan panduan pengelolaan data disiapkan untuk `https://quran.irengcloud.com`. Build dengan `python3 scripts/build-website.py`; deployment mengikuti workflow Pages. Lihat [pengaturan hosting dan DNS](docs/github-pages.md).
