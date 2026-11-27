@@ -40,3 +40,7 @@ Setelah aktif, gunakan `https://quran.irengcloud.com/privasi/` untuk URL kebijak
 Jalankan build lalu server preview, misalnya `python3 -m http.server 4173 --directory build/site`. Periksa semua halaman, tautan footer, FAQ, gambar, dan lebar 360–1440 px. Halaman tidak memakai JavaScript, cookie, font eksternal, atau analitik. Kunjungan tetap diproses oleh infrastruktur hosting; kebijakan aplikasi tidak mengklaim bahwa server hosting tidak memiliki log.
 
 Rujukan: [Custom domain GitHub Pages](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site), [publishing source](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
+## Status deployment — 27 November 2026
+
+Commit website `6c123b0` sudah dipush ke `main`. [Workflow Pages](https://github.com/idlanyor/quran-app/actions/runs/45950506289) selesai sukses. Halaman utama dan `/privasi/` diuji HTTP 200 di URL GitHub Pages sebelum domain dipasang. Custom domain `quran.irengcloud.com` sudah disimpan lewat pengaturan Pages. DNS di penyedia domain dikerjakan pemilik; akses HTTPS pada custom domain masih harus diverifikasi setelah DNS diarahkan. Pemeriksaan browser pada empat halaman di lebar 360, 390, 768, dan 1440 px lulus, termasuk gambar, FAQ, serta tidak ada teks terpotong.
